@@ -5,7 +5,7 @@
 #include <string.h> 
 #include <arpa/inet.h>
 #include<string>
-
+#include<iostream>
 using namespace std;
 
 string getIp(){
@@ -27,6 +27,7 @@ string getIp(){
 	    if(strcmp("em1", ifa->ifa_name) == 0) {
             	// printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer); 
 		string str(addressBuffer);
+		cout<<"[DEBUG]"<<str<<endl;
 		return str;
 	    }
         } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
