@@ -15,8 +15,8 @@ const int DELETE = 2;
 
 Leader :: Leader(string leaderName) {
 	name = leaderName;
-	startServer();	
 	ip = getIp();
+	startServer();	
 }
 
 // Return port number of the UDP server
@@ -50,7 +50,7 @@ int Leader :: startServer(){
 void Leader::printStartMessage() {
 	cout<<name<<" started a new chat, listening on "<<ip<<":"<<portNo<<endl;
 	cout<<"Succeeded, current users:"<<endl;
-	cout<<name<<inet_ntoa(svrAdd.sin_addr)<<":"<<ntohs(svrAdd.sin_port)<<"(Leader)"<<endl;
+	cout<<name<<ip<<":"<<portNo<<"(Leader)"<<endl;
 	if(chatRoom.empty()) {
 		cout<<"Waiting for others to join..."<<endl;
 	}else{
