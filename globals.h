@@ -43,12 +43,9 @@ class Client
         map<string,string> chatRoom;
         int clientFd;
         struct sockaddr_in leaderAddress, clientAddress;
-        struct hostent *serverName;
-        struct ifreq ifr;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
-        char writeBuffer[256];
-        char readBuffer[256];
+        
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
