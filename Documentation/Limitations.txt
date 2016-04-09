@@ -1,1 +1,1 @@
-Maximum number of re-tries to generate unused port number: 30
+Maximum number of re-tries to generate unused port number: infinite until it gets an unused port 
