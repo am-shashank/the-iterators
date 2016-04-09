@@ -1,0 +1,9 @@
+# Compiled Object files
+*.o
+*.obj
+
+# Swap Files
+*.swp
+# Executables
+.out
+.exe
