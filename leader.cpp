@@ -7,11 +7,6 @@
 
 using namespace std;
 
-// define chat codes
-const int JOIN = 1;
-const int DELETE = 2; 
-
-
 
 Leader :: Leader(string leaderName) {
 	name = leaderName;

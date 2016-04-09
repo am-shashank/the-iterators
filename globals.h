@@ -9,10 +9,12 @@
 #include <boost/algorithm/string.hpp>
 #include<map>
 
-using namespace std;
 // chat codes
-extern const int JOIN;
-extern const int DELETE;
+#define JOIN 1
+#define DELETE 2
+#define HEARTBEAT 3
+using namespace std;
+
 
 class Leader {
 
@@ -31,4 +33,38 @@ class Leader {
 		Leader(string leaderName); 
 		int startServer();
 		void printStartMessage();
+};
+class Client
+{
+        private:
+        string userName;
+        char* leaderIp;
+        int leaderPort;
+        map<string,string> chatRoom;
+        int clientFd;
+        struct sockaddr_in leaderAddress, clientAddress;
+        socklen_t leaderAddressLength;
+        socklen_t clientAddressLength;
+        
+        public:
+        Client(string name,string leaderIpPort);
+        int establishConnection();
+        void joinNetwork();
+};
+class Message
+{
+	private:
+	int type;
+	int sequenceNumber;
+	char* buffer;
+
+	public:
+
+	Message(int messageType,int seqNum,char* message);
+	int getType();
+	int getSequenceNumber();
+	char* getMessage();
+	int sendMessage();
+	int receiveMessage();
+	
 };

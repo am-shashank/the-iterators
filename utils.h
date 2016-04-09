@@ -1,9 +1,12 @@
 #include<string>
+<<<<<<< HEAD
 #include <queue>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
- 
+
+using namespace std;
+
 string getIp();
 
 
