@@ -51,4 +51,20 @@ class Client
         int establishConnection();
         void joinNetwork();
 };
+class Message
+{
+	private:
+	int type;
+	int sequenceNumber;
+	char* buffer;
 
+	public:
+
+	Message(int messageType,int seqNum,char* message);
+	int getType();
+	int getSequenceNumber();
+	char* getMessage();
+	int sendMessage();
+	int receiveMessage();
+	
+};
