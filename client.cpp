@@ -6,36 +6,23 @@
 #include<vector>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
-#include "clientGlobal.h"
+#include <net/if.h>
+#include <arpa/inet.h>
+#include "utils.h"
+#include "globals.h"
 
 using namespace std;
-
-class Client
-{
-	private:
-	string userName;
-	string leaderIp;
-	int leaderPort;
-	map<string,string> chatRoom;
-	int clientFd;
-	struct sockaddrIn leaderAddress, clientAddress;
-        struct hostent *serverName;
-        socklen_t leaderAddressLength;
-        socklen_t clientAddressLength;
-
-	public:
-	Client(string name,string leaderIpPort);
-	int establishConnection();
-};
 
 Client :: Client(string name,string leaderIpPort)
 {
 	userName = name;
-       	vector<string> ipPortStr
-        boost::split(split_string,leaderIpPort,boost::is_any_of(":"));
-        leaderIp = ipPortStr[0];
-        leaderPort =atoi(ipPortStr[1]);
+       	vector<string> ipPortStr;
+        boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
+        leaderIp = const_cast<char*>(ipPortStr[0].c_str());
+        leaderPort = atoi(ipPortStr[1].c_str());
+	establishConnection();
 }
 int Client :: establishConnection()
 {
@@ -46,9 +33,17 @@ int Client :: establishConnection()
                         return 0;
                 }
 	
-	bzero((char *) &serverAddress, sizeof(serverAddress));
-        serverAddress.sin_family = AF_INET;
-        inet_pton(AF_INET,leaderIp,&(serverAddress.sin_addr));
-        serverAddress.sin_port = htons(leaderPort);
+	bzero((char *) &leaderAddress, sizeof(leaderAddress));
+        leaderAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,leaderIp,&(leaderAddress.sin_addr));
+        leaderAddress.sin_port = htons(leaderPort);
+	
+	joinNetwork();	
 		
 }
+
+void Client :: joinNetwork()
+{
+	// calculate local ip
+				
+} 
