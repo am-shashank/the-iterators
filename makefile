@@ -1,9 +1,9 @@
 all: 	dchat.o
-	g++ -o dchat dchat.o leader.o
+	g++ -o dchat dchat.o leader.o utils.o
 dchat.o: dchat.cpp leader.o
 	g++ -c dchat.cpp
 leader.o:leader.cpp utils.o
-	g++ -c leader.cpp
+	g++ -c leader.cpp 
 client.o:client.cpp utils.o
 	g++ -c client.cpp
 utils.o:utils.cpp

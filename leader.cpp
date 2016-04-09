@@ -16,6 +16,7 @@ const int DELETE = 2;
 Leader :: Leader(string leaderName) {
 	name = leaderName;
 	startServer();	
+	ip = getIp();
 }
 
 // Return port number of the UDP server
