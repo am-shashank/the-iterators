@@ -32,7 +32,7 @@ Client :: Client(string name,string leaderIpPort)
 /*
 function is used to set the attributes for the server
 */
-void Client :: setServerAttributes(char* ip, int port)
+void Client :: setLeaderAttributes(char* ip, int port)
 {
 	leaderIp = ip;
 	leaderPort = port;
@@ -48,7 +48,7 @@ int Client :: establishConnection()
 
 	clientFd = socket(AF_INET,SOCK_DGRAM,0);
 	int flag=1;
-	int portNo;
+	
 	if(clientFd < 0)
                 {
                 	cout<<"\nsocket could not be established\n"<<endl;
@@ -59,10 +59,10 @@ int Client :: establishConnection()
 	cout<<"socket created"<<endl;	
 	
 	// setting the attributes for the server
-	setServerAttributes(leaderIp,leaderPort);
+	setLeaderAttributes(leaderIp,leaderPort);
 	cout<<"before setting client address"<<endl;
 	// get local ip
-        string clientIp = getIp();
+        clientIp = getIp();
         cout << "client ip:\t"<<clientIp<<endl;
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
@@ -74,34 +74,27 @@ int Client :: establishConnection()
 	while(true) {
 
                 int range = MAX_PORTNO - MIN_PORTNO + 1;
-                portNo = rand() % range + MIN_PORTNO;
-                clientAddress.sin_port = htons(portNo);
+                clientPort = rand() % range + MIN_PORTNO;
+                clientAddress.sin_port = htons(clientPort);
 
                 if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
-                        cerr << "Error: Cannot bind socket on " <<portNo<<endl;
+                        cerr << "Error: Cannot bind socket on " <<clientPort<<endl;
                 }else
                         break;
 
         }
-	cout<<"after bind"<<endl;
+	//cout<<"after bind"<<endl;
 
-        clientAddress.sin_port = htons(portNo);
+        clientAddress.sin_port = htons(clientPort);
 
-	/* binding the client to the socket
-	if(bind(clientFd,(struct sockaddr *)&clientAddress, sizeof(clientAddress))<0)
-        {
-            cout<<"\nerror occurred while binding the client to the socket\n"<<endl;
-            exit(1);
-        }*/
+	//since bind was successful print the message on client's screen
+	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
 
-	cout<<"client listening"<<endl;	
-	
-	cout<<"my local port is\t"<<portNo<<endl;
-	joinNetwork(portNo,clientIp);	
+	joinNetwork(clientPort,clientIp);	
 		
 }
 
-void Client :: joinNetwork(int portNo,string clientIp)
+void Client :: joinNetwork(int portNo,string ip)
 {
 	// calculate local ip
 	
@@ -109,7 +102,7 @@ void Client :: joinNetwork(int portNo,string clientIp)
 
 	std::stringstream joinMsg;
 
-	joinMsg<< JOIN<<"%" << userName <<"%" <<clientIp<<":"<<portNo;
+	joinMsg<< JOIN<<"%" << userName <<"%" <<ip<<":"<<portNo;
 	string msg = joinMsg.str();
 
 	int sendResult = sendMessage(clientFd,msg,leaderAddress);
@@ -127,13 +120,52 @@ void Client :: joinNetwork(int portNo,string clientIp)
 	string receivedMessage = receiveMessage(clientFd,&clientAddress,&len);
 	if(!(receivedMessage == ""))
 	{
-		cout<<"Message received\t"<<receivedMessage<<endl;
+		//cout<<"Message received\t"<<receivedMessage<<endl;
+		//split the message
+		vector<string> listMessages ;
+        	boost::split(listMessages,receivedMessage,boost::is_any_of("%"));
+		int code = atoi(listMessages[0].c_str());
+		if(code == LIST_OF_USERS)
+		{
+			// leader sent back the list of users
+			cout<<"Succeeded, current users:"<<endl;
+			vector<string> :: iterator ite;
+			ite = listMessages.begin();
+			ite++;
+			for(;ite != listMessages.end();ite++)
+			{
+				string element = *ite;
+				vector<string> listUsers;
+				boost::split(listUsers,element,boost::is_any_of("&"));
+				// users added to the map
+				chatRoom[listUsers[1]] = listUsers[0];
+				cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl; 	
+			}
+			// all users got displayed
+			return;
+		}
+		else if(code == RESOLVE_LEADER)
+		{
+			//some other client sent back the leader's ip and port
+			vector<string> ipPort;
+			boost::split(ipPort,listMessages[1],boost::is_any_of(":"));
+			char *ip = const_cast<char*>(ipPort[0].c_str());
+        		int portNum = atoi(ipPort[1].c_str());
+
+			// set the attributes for the leader
+			setLeaderAttributes(ip,portNum);
+
+			//resend the join message
+			joinNetwork(clientPort,clientIp);			 			
+		}		
 	}
 	else
 	{
 		#ifdef DEBUG
 		cout<<"[DEBUG]message could not be recived\n"<<endl;
 		#endif
+		// no chat is active
+		cout<<"Sorry, no chat is active on "<<leaderIp<<":"<<leaderPort<<", try again later."<<endl<<"Bye."<<endl;
 	}
 				
 } 

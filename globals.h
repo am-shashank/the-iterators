@@ -51,6 +51,8 @@ class Client
         string userName;
         char* leaderIp;
         int leaderPort;
+	int clientPort;
+	string clientIp;	
         map<string,string> chatRoom;
         int clientFd;
         struct sockaddr_in leaderAddress, clientAddress;
@@ -60,7 +62,7 @@ class Client
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
-	void setServerAttributes(char* ip, int port);
+	void setLeaderAttributes(char* ip, int port);
         void joinNetwork(int portNo,string localIp);
 };
 class Message
