@@ -2,7 +2,7 @@
 #include "globals.h"
 #include "utils.h"
 #include <thread>
-
+#include <sstream> 
 // Range of random port numbers where UDP server starts
 #define MIN_PORTNO 2000
 #define MAX_PORTNO 50000
@@ -69,15 +69,37 @@ void Leader::printStartMessage() {
 }
 
 /*   Parse the encoded message into a Message object
+     and order using sequence number and add to Queue
 */
-Message Leader::parseMessage(char *message) {
+void Leader::parseMessage(char *message) {
 	// spliting the encoded message
     	vector<string> messageSplit;
     	boost::split(messageSplit,message,boost::is_any_of("%"));
     
 	int messageType = atoi(messageSplit[0].c_str());
-	seqNum++; /**** Ordering of messages ****/
-   	return Message(messageType,seqNum, message);  	
+	switch(messageType) {
+		case JOIN:        // Format:  1%user%ip:port
+			string user = messagesplit[1];
+			string ipPort = messagesplit[2];
+			// Add new user to map and add NOTICE message to queue
+			chatRoom[ipPort] = user;	
+			stringstream ss;
+			ss << CHAT << "%NOTICE " << user << " joined on " << ipPort;
+			Message m(CHAT, ++seqNum, ss.str());
+			q.push(m);					
+			break;
+		case CHAT:
+			/**** Ordering of messages ****/
+			Message m(CHAT,++seqNum, message);
+			q.push(m);
+			break;
+		case DELETE:	
+			break;
+		default:
+			cout<<"Invalid chat code sent by participant"<<endl;
+
+	}
+	   	
 }
 
 /*  Producer thread constantly listening to 
@@ -95,9 +117,8 @@ void Leader::producerTask() {
 		#ifdef DEBUG
         	cout<<"[DEBUG] Received from Client:" << readBuffer<<endl;
 		#endif
-        	Message m = parseMessage(readBuffer);
-		q.push(m);
-    	}
+        	parseMessage(readBuffer);
+	}
 }
 
 /*   Worker/ Consumer thread constantly dequeuing messages
