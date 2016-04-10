@@ -19,6 +19,7 @@
 #define JOIN 1
 #define DELETE 2
 #define HEARTBEAT 3
+#define LIST_OF_USERS 4
 #define CHAT 100
 using namespace std;
 
@@ -80,6 +81,7 @@ class Leader
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
 		void parseMessage(char *message);
+		void sendListUsers(string clientIp, int clientPort);
 };
 
 class Client

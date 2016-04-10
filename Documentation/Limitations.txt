@@ -1,2 +1,3 @@
 Maximum number of re-tries to generate unused port number: infinite until it gets an unused port
-Works mostly with IPv4 addresses 
+Works mostly with IPv4 addresses
+Username cannot contain &, % and other special characters 

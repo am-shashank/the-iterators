@@ -87,12 +87,20 @@ void Leader::parseMessage(char *message) {
 	switch(messageType) {
 		case JOIN:        // Format:  1%user%ip:port
 			{
-				// Add new user to map and add NOTICE message to queue
+				// Add new user to map 
 				string user = messageSplit[1];
 				string ipPort = messageSplit[2];
-				stringstream response;
-
-				chatRoom[ipPort] = user;	
+				chatRoom[ipPort] = user;
+				
+				// Split IP and Port and send list of users in chatroom
+				vector<string> ipPortSplit;
+    				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
+				string clientIp = ipPortSplit[0];
+				int clientPort = atoi(ipPortSplit[1].c_str());
+				sendListUsers(clientIp, clientPort); 
+			
+				// add NOTICE message to Queue	
+				stringstream response;	
 				response << CHAT << "%NOTICE " << user << " joined on " << ipPort;
 				Message responseObj = Message(CHAT, ++seqNum, response.str());
 				q.push(responseObj);		
@@ -151,17 +159,37 @@ void Leader::consumerTask() {
 			
 			vector<string> messageSplit;
         		boost::split(messageSplit,it->first,boost::is_any_of(":"));
-			string ip = messageSplit[0];
-		        int port = atoi(messageSplit[1].c_str());
+			string clientIp = messageSplit[0];
+		        int clientPort = atoi(messageSplit[1].c_str());
  
 			/* set socket attributes for participant */
 			struct sockaddr_in clientAdd;
 			bzero((char *) &clientAdd, sizeof(clientAdd));
         		clientAdd.sin_family = AF_INET;
-        		inet_pton(AF_INET,ip.c_str(),&(clientAdd.sin_addr));
-        		clientAdd.sin_port = htons(port);
+        		inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
+        		clientAdd.sin_port = htons(clientPort);
 			
 			sendto(socketFd, msg.c_str(),msg.length(),0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
                 }		
 	}	
+}
+
+void Leader::sendListUsers(string clientIp, int clientPort) {
+	map<string,string>::iterator it;
+	stringstream ss;
+	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << portNo << " (Leader) %";
+	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+		ss << it->second << "&" << it->first << "%";		
+	}
+	
+	/* set socket attributes for participant */
+	struct sockaddr_in clientAdd;
+	bzero((char *) &clientAdd, sizeof(clientAdd));
+	clientAdd.sin_family = AF_INET;
+	inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
+	clientAdd.sin_port = htons(clientPort);
+	
+	string response = ss.str();
+	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
+
 }
