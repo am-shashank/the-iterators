@@ -29,6 +29,19 @@ Client :: Client(string name,string leaderIpPort)
         leaderPort = atoi(ipPortStr[1].c_str());
 	establishConnection();
 }
+/*
+function is used to set the attributes for the server
+*/
+void Client :: setServerAttributes(char* ip, int port)
+{
+	leaderIp = ip;
+	leaderPort = port;
+	bzero((char *) &leaderAddress, sizeof(leaderAddress));
+        leaderAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,leaderIp,&(leaderAddress.sin_addr));
+        leaderAddress.sin_port = htons(leaderPort);
+		
+}
 int Client :: establishConnection()
 {
 	//create socket
@@ -42,21 +55,21 @@ int Client :: establishConnection()
                         return 0;
                 }
 
-	// making the port number reusable: multiple sockets using same port
-	if(setsockopt(clientFd,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag))<0)
-	{
-		cout<<"setsockopt() command failed\n"<<endl;
-			
-	} 
+	 
+	cout<<"socket created"<<endl;	
 	
-	bzero((char *) &leaderAddress, sizeof(leaderAddress));
-        leaderAddress.sin_family = AF_INET;
-        inet_pton(AF_INET,leaderIp,&(leaderAddress.sin_addr));
-        leaderAddress.sin_port = htons(leaderPort);
+	// setting the attributes for the server
+	setServerAttributes(leaderIp,leaderPort);
+	cout<<"before setting client address"<<endl;
+	// get local ip
+        string clientIp = getIp();
+        cout << "client ip:\t"<<clientIp<<endl;
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
         clientAddress.sin_family = AF_INET;
-        clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
+        //clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
+	inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
+	cout<<"before bind"<<endl;
 	// randomly generated port of client
 	while(true) {
 
@@ -70,34 +83,19 @@ int Client :: establishConnection()
                         break;
 
         }
+	cout<<"after bind"<<endl;
 
         clientAddress.sin_port = htons(portNo);
 
-	// binding the client to the socket
+	/* binding the client to the socket
 	if(bind(clientFd,(struct sockaddr *)&clientAddress, sizeof(clientAddress))<0)
         {
             cout<<"\nerror occurred while binding the client to the socket\n"<<endl;
             exit(1);
-        }
+        }*/
 
 	cout<<"client listening"<<endl;	
-	// get local ip
-	string clientIp = getIp();
-	cout << "client ip:\t"<<clientIp<<endl;
-
-	// get local port number
- 	socklen_t clientAddrLen = sizeof(clientAddress);
-	/*
-	if(getsockname(clientFd,(struct sockaddr *)&clientAddress,&clientAddrLen)==0 && clientAddress.sin_family == AF_INET && clientAddrLen == sizeof(clientAddress))
-	{
-		int localPort = ntohs(clientAddress.sin_port);
-		cout<<"my local port is\t"<<localPort<<endl;		
-	}
-	else
-	{
-		cout<<"error occurred while calculating the port number of the client's machine\n"<<endl;
-	}
-	*/
+	
 	cout<<"my local port is\t"<<portNo<<endl;
 	joinNetwork(portNo,clientIp);	
 		
@@ -106,28 +104,36 @@ int Client :: establishConnection()
 void Client :: joinNetwork(int portNo,string clientIp)
 {
 	// calculate local ip
-	char writeBuffer[256];
-	char readBuffer[256];
+	
 	socklen_t len = sizeof(clientAddress);
 
-	bzero(writeBuffer,0);
 	std::stringstream joinMsg;
 
-	joinMsg<< JOIN << userName <<"%" <<clientIp<<":"<<portNo;
+	joinMsg<< JOIN<<"%" << userName <<"%" <<clientIp<<":"<<portNo;
 	string msg = joinMsg.str();
-	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
-	sendto(clientFd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&leaderAddress,sizeof(leaderAddress));
-        cout<<"message sent"<<endl;
-        bzero(readBuffer,256);
-        int numChar = recvfrom(clientFd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *)&clientAddress,&len);
-        if(numChar<0)
-         {
-                 cout<<"\nerror reading from socket\n"<<endl;
 
-                 exit(1);
-         }
+	int sendResult = sendMessage(clientFd,msg,leaderAddress);
 
-	cout<<"message read\t"<<readBuffer<<endl;
+	if(sendResult == -1)
+	{
+		#ifdef DEBUG
+		cout<<"[DEBUG]message could not be sent"<<endl;
+		#endif
+	}
 
+	
+	// receiving msg
+
+	string receivedMessage = receiveMessage(clientFd,&clientAddress,&len);
+	if(!(receivedMessage == ""))
+	{
+		cout<<"Message received\t"<<receivedMessage<<endl;
+	}
+	else
+	{
+		#ifdef DEBUG
+		cout<<"[DEBUG]message could not be recived\n"<<endl;
+		#endif
+	}
 				
 } 

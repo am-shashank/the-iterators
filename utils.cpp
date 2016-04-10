@@ -6,6 +6,9 @@
 #include <arpa/inet.h>
 #include<string>
 #include<iostream>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 using namespace std;
 
 string getIp(){
@@ -47,6 +50,36 @@ string getIp(){
     
 }
 
+// function used to send message
+int sendMessage(int fd,string msg,sockaddr_in addr)
+{
+	char writeBuffer[500];
+	bzero(writeBuffer,0);
+	socklen_t len = sizeof(addr);
+	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
+        int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+	return result;
+
+}
+// receive message which returns the message received
+string receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen)
+{
+
+	char readBuffer[500];
+	string msg = "";
+	bzero(readBuffer,0);
+	int num_char = recvfrom(fd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *) addr,addrLen);
+	if(num_char<0)
+                {
+                         cout<<"error reading from socket\n"<<endl;
+                }
+	else
+	{
+		msg = string(readBuffer);
+	}
+	return msg;
+	
+}
 
 
 
