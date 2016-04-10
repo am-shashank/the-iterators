@@ -2,11 +2,12 @@
 
 using namespace std;
 
-Message :: Message(int messageType,int seqNum, char* message)
+Message :: Message(int messageType,int seqNum,string message)
 {
 	type = messageType;
 	sequenceNumber = seqNum;
 	buffer = message;
+	seqNum = 0;  // TODO: reset seq number based on results from bully
 }
 int Message :: getType()
 {
@@ -32,3 +33,6 @@ bool Message::operator<(const Message &m) const
 	return type - m.type;
 }
 
+Message::~Message() 
+{
+}

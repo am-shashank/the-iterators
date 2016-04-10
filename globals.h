@@ -28,18 +28,27 @@ class Leader
 	string name;
 	string ip; 
 	int portNo;
-	
+        	
 	// socket specific info
 	int socketFd;
 	struct sockaddr_in svrAdd;
 	socklen_t len; //store size of the address
+		
+	int seqNum;   // global sequence number for ordering of messages
+	BlockingPQueue<Message> q;
 
 	// map of users ip and names in chat room
 	map<string, string> chatRoom;
 	public:
 		Leader(string leaderName); 
-		int startServer();
+		void startServer();
 		void printStartMessage();
+		
+		// Thread task to listen for messages in chatroom from participants
+		void producerTask();
+		
+		// Thread task to multi-cast messages to participants in chatroom
+		void consumerTask();
 };
 class Client
 {
@@ -63,17 +72,17 @@ class Message
 	private:
 	int type;
 	int sequenceNumber;
-	char* buffer;
+	string buffer;
 
 	public:
 
-	Message(int messageType,int seqNum,char* message);
+	Message(int messageType,int seqNum,string message);
 	int getType();
 	int getSequenceNumber();
-	char* getMessage();
-	int sendMessage();
-	int receiveMessage();
-        bool operator<(const Message &m1) const; 
+	string getMessage();
+        bool operator<(const Message &m1) const;
+	
+	~Message(); 
 };
 
 class BlockingPQueue
