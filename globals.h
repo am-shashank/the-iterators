@@ -9,6 +9,12 @@
 #include <boost/algorithm/string.hpp>
 #include<map>
 
+// For implementing Blocking Priority Queue
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 // chat codes
 #define JOIN 1
 #define DELETE 2
@@ -16,7 +22,8 @@
 using namespace std;
 
 
-class Leader {
+class Leader 
+{
 
 	string name;
 	string ip; 
@@ -66,5 +73,16 @@ class Message
 	char* getMessage();
 	int sendMessage();
 	int receiveMessage();
-	
+        bool operator<(const Message &m1) const; 
+};
+
+class BlockingPQueue
+{
+	priority_queue<Message> pQueue; 
+  	mutex mtx;
+  	condition_variable conditionVar;
+	public:
+		void push(Message m);
+		Message pop();
+
 };

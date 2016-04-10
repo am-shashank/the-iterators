@@ -46,3 +46,9 @@ string getIp(){
     if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
     
 }
+
+
+
+
+	
+
