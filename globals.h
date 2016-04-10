@@ -15,12 +15,16 @@
 #include <mutex>
 #include <condition_variable>
 
-// chat codes
+#define DEBUG 1	
+
+// chat priority codes
 #define JOIN 1
 #define DELETE 2
 #define HEARTBEAT 3
-#define LIST_OF_USERS 4
+#define RESOLVE_LEADER 4
+#define LIST_OF_USERS 5
 #define CHAT 100
+
 using namespace std;
 
 class Message
@@ -99,7 +103,8 @@ class Client
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
-        void joinNetwork();
+	void setServerAttributes(char* ip, int port);
+        void joinNetwork(int portNo,string localIp);
 };
 
 
