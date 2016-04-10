@@ -49,7 +49,7 @@ class Client
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
-        void joinNetwork();
+        void joinNetwork(int portNo,string localIp);
 };
 class Message
 {

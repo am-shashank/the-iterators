@@ -12,7 +12,7 @@ int main(int argc,char *argv[])
 	else if(argc == 3)
 	{
 		//invoke the client
-		// Client worker(argv[1],argv[2]);
+		Client worker(argv[1],argv[2]);
 	}
 	else
 	{

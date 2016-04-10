@@ -1,4 +1,4 @@
-#include "message.h"
+#include "globals.h"
 
 using namespace std;
 
