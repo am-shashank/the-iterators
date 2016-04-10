@@ -18,7 +18,7 @@ int Message :: getSequenceNumber()
 {
 	return sequenceNumber;
 }
-char* Message :: getMessage()
+string Message :: getMessage()
 {
 	return buffer;
 }

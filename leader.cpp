@@ -1,8 +1,8 @@
 #include <iostream>
 #include "globals.h"
 #include "utils.h"
-#include <thread>
 #include <sstream> 
+#include<sys/time.h>
 // Range of random port numbers where UDP server starts
 #define MIN_PORTNO 2000
 #define MAX_PORTNO 50000
@@ -32,7 +32,10 @@ void Leader :: startServer(){
    	/* bind to the UDP socket on the random port number
 	and retry with different random port if binding fails */
 	
-	srand(); // seed the random number generator with curent time    
+	// seed the random number generator with curent time    
+	struct timeval t1;
+	gettimeofday(&t1, NULL);
+	srand(t1.tv_usec * t1.tv_sec);
    	while(true) {
 
 		int range = MAX_PORTNO - MIN_PORTNO + 1;
@@ -48,6 +51,10 @@ void Leader :: startServer(){
     	printStartMessage();
 	
 	// TODO: Start producer and consumer threads
+	thread prod(&Leader::producerTask, this);
+	thread con(&Leader::consumerTask, this);	
+	prod.join();
+	con.join();
 }
 
 /*  Print welcome message on start of UDP server
@@ -79,19 +86,24 @@ void Leader::parseMessage(char *message) {
 	int messageType = atoi(messageSplit[0].c_str());
 	switch(messageType) {
 		case JOIN:        // Format:  1%user%ip:port
-			string user = messagesplit[1];
-			string ipPort = messagesplit[2];
-			// Add new user to map and add NOTICE message to queue
-			chatRoom[ipPort] = user;	
-			stringstream ss;
-			ss << CHAT << "%NOTICE " << user << " joined on " << ipPort;
-			Message m(CHAT, ++seqNum, ss.str());
-			q.push(m);					
+			{
+				// Add new user to map and add NOTICE message to queue
+				string user = messageSplit[1];
+				string ipPort = messageSplit[2];
+				stringstream response;
+
+				chatRoom[ipPort] = user;	
+				response << CHAT << "%NOTICE " << user << " joined on " << ipPort;
+				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				q.push(responseObj);		
+			}			
 			break;
 		case CHAT:
-			/**** Ordering of messages ****/
-			Message m(CHAT,++seqNum, message);
-			q.push(m);
+			{
+				/**** Ordering of messages ****/
+				Message responseObj = Message(CHAT,++seqNum, string(message));
+				q.push(responseObj);
+			}
 			break;
 		case DELETE:	
 			break;
@@ -134,7 +146,7 @@ void Leader::consumerTask() {
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
 			string msg = m.getMessage();
 			#ifdef DEBUG
-                        cout<<"Sending "<<msg<<" to "it->second<<" "<<it->first<<endl;
+                        cout<<"Sending "<<msg<<" to "<<it->second<<"@"<<it->first<<endl;
 			#endif
 			
 			vector<string> messageSplit;

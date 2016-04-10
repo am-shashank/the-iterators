@@ -19,54 +19,9 @@
 #define JOIN 1
 #define DELETE 2
 #define HEARTBEAT 3
+#define CHAT 100
 using namespace std;
 
-
-class Leader 
-{
-
-	string name;
-	string ip; 
-	int portNo;
-        	
-	// socket specific info
-	int socketFd;
-	struct sockaddr_in svrAdd;
-	socklen_t len; //store size of the address
-		
-	int seqNum;   // global sequence number for ordering of messages
-	BlockingPQueue<Message> q;
-
-	// map of users ip and names in chat room
-	map<string, string> chatRoom;
-	public:
-		Leader(string leaderName); 
-		void startServer();
-		void printStartMessage();
-		
-		// Thread task to listen for messages in chatroom from participants
-		void producerTask();
-		
-		// Thread task to multi-cast messages to participants in chatroom
-		void consumerTask();
-};
-class Client
-{
-        private:
-        string userName;
-        char* leaderIp;
-        int leaderPort;
-        map<string,string> chatRoom;
-        int clientFd;
-        struct sockaddr_in leaderAddress, clientAddress;
-        socklen_t leaderAddressLength;
-        socklen_t clientAddressLength;
-        
-        public:
-        Client(string name,string leaderIpPort);
-        int establishConnection();
-        void joinNetwork();
-};
 class Message
 {
 	private:
@@ -85,6 +40,7 @@ class Message
 	~Message(); 
 };
 
+
 class BlockingPQueue
 {
 	priority_queue<Message> pQueue; 
@@ -95,3 +51,53 @@ class BlockingPQueue
 		Message pop();
 
 };
+
+class Leader 
+{
+
+	string name;
+	string ip; 
+	int portNo;
+        	
+	// socket specific info
+	int socketFd;
+	struct sockaddr_in svrAdd;
+	socklen_t len; //store size of the address
+		
+	int seqNum;   // global sequence number for ordering of messages
+	BlockingPQueue q;
+
+	// map of users ip and names in chat room
+	map<string, string> chatRoom;
+	public:
+		Leader(string leaderName); 
+		void startServer();
+		void printStartMessage();
+		
+		// Thread task to listen for messages in chatroom from participants
+		void producerTask();
+		
+		// Thread task to multi-cast messages to participants in chatroom
+		void consumerTask();
+		void parseMessage(char *message);
+};
+
+class Client
+{
+        private:
+        string userName;
+        char* leaderIp;
+        int leaderPort;
+        map<string,string> chatRoom;
+        int clientFd;
+        struct sockaddr_in leaderAddress, clientAddress;
+        socklen_t leaderAddressLength;
+        socklen_t clientAddressLength;
+        
+        public:
+        Client(string name,string leaderIpPort);
+        int establishConnection();
+        void joinNetwork();
+};
+
+
