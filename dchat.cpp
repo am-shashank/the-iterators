@@ -7,7 +7,10 @@ int main(int argc,char *argv[])
 	{
 		//invoke the leader
 		Leader leader(argv[1]);				
-
+		Message m(JOIN, 1, "message 1");
+		BlockingPQueue bpq;
+		bpq.push(m);
+		cout<<bpq.pop().getMessage();		
 	}
 	else if(argc == 3)
 	{
@@ -16,6 +19,7 @@ int main(int argc,char *argv[])
 	}
 	else
 	{
-		cout<<"Wrong invocation...Please try again\n"<<endl;
+		cout<<"dchat <USER> [ADDR:PORT]"<<endl;
 	}
+	return 0;
 }
