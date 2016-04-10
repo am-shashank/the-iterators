@@ -8,7 +8,7 @@ void BlockingPQueue::push(Message m)
     	conditionVar.notify_one();
 }
 
-Message pop()
+Message BlockingPQueue::pop()
 {
 	unique_lock<mutex> mlock(mtx);
     	while (pQueue.empty())

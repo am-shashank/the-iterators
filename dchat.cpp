@@ -16,6 +16,6 @@ int main(int argc,char *argv[])
 	}
 	else
 	{
-		cout<<"Wrong invocation...Please try again\n"<<endl;
+		cout<<"dchat <USER> [ADDR:PORT]"<<endl;
 	}
 }
