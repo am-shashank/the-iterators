@@ -15,16 +15,47 @@
 #include <mutex>
 #include <condition_variable>
 
-// chat priority codes
 #define DEBUG 1	
+
+// chat priority codes
 #define JOIN 1
 #define DELETE 2
 #define HEARTBEAT 3
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
 #define CHAT 100
+
 using namespace std;
 
+class Message
+{
+	private:
+	int type;
+	int sequenceNumber;
+	string buffer;
+
+	public:
+
+	Message(int messageType,int seqNum,string message);
+	int getType();
+	int getSequenceNumber();
+	string getMessage();
+        bool operator<(const Message &m1) const;
+	
+	~Message(); 
+};
+
+
+class BlockingPQueue
+{
+	priority_queue<Message> pQueue; 
+  	mutex mtx;
+  	condition_variable conditionVar;
+	public:
+		void push(const Message &m);
+		Message pop();
+
+};
 
 class Leader 
 {
@@ -32,19 +63,31 @@ class Leader
 	string name;
 	string ip; 
 	int portNo;
-	
+        	
 	// socket specific info
 	int socketFd;
 	struct sockaddr_in svrAdd;
 	socklen_t len; //store size of the address
+		
+	int seqNum;   // global sequence number for ordering of messages
+	BlockingPQueue q;
 
 	// map of users ip and names in chat room
 	map<string, string> chatRoom;
 	public:
 		Leader(string leaderName); 
-		int startServer();
+		void startServer();
 		void printStartMessage();
+		
+		// Thread task to listen for messages in chatroom from participants
+		void producerTask();
+		
+		// Thread task to multi-cast messages to participants in chatroom
+		void consumerTask();
+		void parseMessage(char *message);
+		void sendListUsers(string clientIp, int clientPort);
 };
+
 class Client
 {
         private:
@@ -65,31 +108,5 @@ class Client
 	void setLeaderAttributes(char* ip, int port);
         void joinNetwork(int portNo,string localIp);
 };
-class Message
-{
-	private:
-	int type;
-	int sequenceNumber;
-	char* buffer;
 
-	public:
 
-	Message(int messageType,int seqNum,char* message);
-	int getType();
-	int getSequenceNumber();
-	char* getMessage();
-	int sendMessage();
-	int receiveMessage();
-        bool operator<(const Message &m1) const; 
-};
-
-class BlockingPQueue
-{
-	priority_queue<Message> pQueue; 
-  	mutex mtx;
-  	condition_variable conditionVar;
-	public:
-		void push(const Message &m);
-		Message pop();
-
-};

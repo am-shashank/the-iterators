@@ -4,7 +4,8 @@
 #include <netinet/in.h> 
 #include <string.h> 
 #include <arpa/inet.h>
-#include<string>
+#include <string>
+#include "globals.h"
 #include<iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -28,9 +29,10 @@ string getIp(){
             char addressBuffer[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
 	    if(strcmp("em1", ifa->ifa_name) == 0) {
-            	// printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer); 
-		string str(addressBuffer);
+            	string str(addressBuffer);
+		#ifdef DEBUG
 		cout<<"[DEBUG]"<<str<<endl;
+		#endif
 		return str;
 	    }
         } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
@@ -38,9 +40,10 @@ string getIp(){
             tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
             char addressBuffer[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-            printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer); 
             if(strcmp("em1", ifa->ifa_name) == 0) {
-            	// printf("%s IP Address %s\n", ifa->ifa_name, addressBuffer); 
+		#ifdef DEBUG
+            	printf("[DEBUG] %s IP Address %s\n", ifa->ifa_name, addressBuffer); 
+		#endif
 		string str(addressBuffer);
 		return str;
 	    }
