@@ -1,7 +1,7 @@
 CPPFLAGS = -std=c++11 
 all: 	dchat.o leader.o client.o
-	g++ $(CPPFLAGS) -o dchat dchat.o leader.o utils.o client.o
-dchat.o: dchat.cpp 
+	g++ $(CPPFLAGS) -o dchat dchat.o leader.o utils.o client.o queue.o message.o
+dchat.o: dchat.cpp
 	g++ $(CPPFLAGS) -c dchat.cpp
 leader.o:leader.cpp utils.o globals.h queue.o
 	g++ $(CPPFLAGS) -c leader.cpp 
@@ -14,5 +14,5 @@ queue.o:queue.cpp globals.h message.o
 message.o:message.cpp globals.h
 	g++ $(CPPFLAGS) -c message.cpp
 clean:
-	rm -f dchat dchat.o leader.o client.o utils.o queue.o
+	rm -f dchat dchat.o leader.o client.o utils.o queue.o message.o
 	

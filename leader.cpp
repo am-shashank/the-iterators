@@ -40,12 +40,22 @@ int Leader :: startServer(){
 
     	}
     	printStartMessage();
+	
+	while (true) {
+		struct sockaddr_in clientAdd;
+		socklen_t clientLen = sizeof(clientAdd);
+        	char readBuffer[500];
+        	bzero(readBuffer, 501);        
+        	recvfrom(socketFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+        	cout<<"Received from Client:" << readBuffer<<endl;
+        	// parseMessage(readBuffer);
+    	}
 }
 
 void Leader::printStartMessage() {
 	cout<<name<<" started a new chat, listening on "<<ip<<":"<<portNo<<endl;
 	cout<<"Succeeded, current users:"<<endl;
-	cout<<name<<ip<<":"<<portNo<<"(Leader)"<<endl;
+	cout<<name<<" "<<ip<<":"<<portNo<<"(Leader)"<<endl;
 	if(chatRoom.empty()) {
 		cout<<"Waiting for others to join..."<<endl;
 	}else{

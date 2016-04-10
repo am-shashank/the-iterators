@@ -82,7 +82,7 @@ class BlockingPQueue
   	mutex mtx;
   	condition_variable conditionVar;
 	public:
-		void push(Message m);
+		void push(const Message &m);
 		Message pop();
 
 };

@@ -1,6 +1,6 @@
 #include "globals.h"
 
-void BlockingPQueue::push(Message m)
+void BlockingPQueue::push(const Message &m)
 {
 	unique_lock<mutex> mlock(mtx);
     	pQueue.push(m);
@@ -19,3 +19,4 @@ Message BlockingPQueue::pop()
     	pQueue.pop();
     	return item;
 }
+
