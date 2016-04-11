@@ -73,7 +73,7 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	//bzero(readBuffer,501);
 	int num_char = recvfrom(fd,buffer,500,0,(struct sockaddr *) addr,addrLen);
 	#ifdef DEBUG
-	cout<<"[DEBUG]Inside utils.cpp message received\t"<<buffer<<endl;
+	//cout<<"[DEBUG]Inside utils.cpp message received\t"<<buffer<<endl;
 	#endif
 	if(num_char<0)
         {

@@ -104,7 +104,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 			
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << CHAT << "%NOTICE " << user << " joined on " << clientId;
+				response << "NOTICE " << user << " joined on " << clientId;
 				Message responseObj = Message(CHAT, ++seqNum, response.str());
 				q.push(responseObj);		
 			}			
@@ -112,23 +112,20 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 		case CHAT:
 			{
 				/**** Ordering of messages ****/
-				Message responseObj = Message(CHAT,++seqNum, chatRoom[clientId] + ":: " + message);
+				Message responseObj = Message(CHAT,++seqNum, chatRoom[clientId] + ":: " + messageSplit[1]);
 				q.push(responseObj);
 			}
 			break;
 		case DELETE:
 			{
 				// Delete user from map
-				string ipPort = messageSplit[1];
-				string user = chatRoom[ipPort];
-				chatRoom.erase(ipPort); 
+				string user = chatRoom[clientId];
+				chatRoom.erase(clientId); 
 				
-				sendListUsers(clientIp, clientPort); 
-			
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << CHAT << "%NOTICE " << user << " left the chat or just crashed";
-				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				response << clientId << "%NOTICE " << user << " left the chat or just crashed";
+				Message responseObj = Message(DELETE, ++seqNum, response.str());
 				q.push(responseObj);		
 
 			}	
@@ -192,7 +189,9 @@ void Leader::consumerTask() {
 		// TODO: Multi-cast to everyone in the group 
 		map<string,string>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
-			string msg = m.getMessage();
+			stringstream msgStream;
+			msgStream << m.getType() << "%" << m.getMessage();
+			string msg = msgStream.str();
 			#ifdef DEBUG
                         cout<<"Sending "<<msg<<" to "<<it->second<<"@"<<it->first<<endl;
 			#endif

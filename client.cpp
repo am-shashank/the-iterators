@@ -24,6 +24,7 @@ using namespace std;
 Client :: Client(string name,string leaderIpPort)
 {
 	userName = name;
+	leader = false;
        	vector<string> ipPortStr;
         boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
         leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -71,7 +72,7 @@ int Client :: establishConnection()
         clientIp = getIp();
 
 	#ifdef DEBUG
-        cout << "[DEBUG]client ip:\t"<<clientIp<<endl;
+        //cout << "[DEBUG]client ip:\t"<<clientIp<<endl;
 	#endif
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
@@ -93,11 +94,11 @@ int Client :: establishConnection()
                 int range = MAX_PORTNO - MIN_PORTNO + 1;
                 clientPort = rand() % range + MIN_PORTNO;
 		#ifdef DEBUG
-		cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
+		//cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
 		#endif
                 clientAddress.sin_port = htons(clientPort);
 		#ifdef DEBUG
-		cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
+		//cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
 		#endif
 
                 if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
@@ -114,7 +115,7 @@ int Client :: establishConnection()
 
         //clientAddress.sin_port = htons(clientPort);
 	// set timeout for client socket
-	struct timeval timeout;
+	/*struct timeval timeout;
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 5000;
 	
@@ -123,7 +124,7 @@ int Client :: establishConnection()
 		#ifdef DEBUG
 		cout<<"[DEBUG]error occurred while executing setsockopt()"<<endl;
 		#endif
-	}
+	}*/
 
 	//since bind was successful print the message on client's screen
 	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
@@ -140,7 +141,7 @@ int Client :: establishConnection()
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
         	sendMsg.join();
-        	//receiveMsg.join();
+        	receiveMsg.join();
  
 	}
 	else
@@ -167,7 +168,7 @@ int Client :: joinNetwork(int portNo,string ip)
 
 	int sendResult = sendMessage(clientFd,msg,leaderAddress);
 	#ifdef DEBUG
-	cout<<"[DEBUG]message sent\t"<<sendResult<<endl;
+	//cout<<"[DEBUG]message sent\t"<<sendResult<<endl;
 	#endif
 	if(sendResult < 0)
 	{
@@ -179,7 +180,7 @@ int Client :: joinNetwork(int portNo,string ip)
 	
 	// receiving msg
 	#ifdef DEBUG
-	cout<<"[DEBUG]before receiving message"<<endl;
+	//cout<<"[DEBUG]before receiving message"<<endl;
 	#endif
 
 	struct sockaddr_in clientTemp;
@@ -187,13 +188,13 @@ int Client :: joinNetwork(int portNo,string ip)
 	char readBuffer[500];
 	bzero(readBuffer,501);
 	#ifdef DEBUG
-	cout <<"[DEBUG]client address port\t"<<clientAddress.sin_port<<endl;
+	//cout <<"[DEBUG]client address port\t"<<clientAddress.sin_port<<endl;
 	#endif
 	int receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
 		
 	#ifdef DEBUG
 	cout<<"[DEBUG]Message received\t"<<receivedMessage<<endl;
-	cout<<"[DEBUG] Temp socket : "<<clientTemp.sin_port<<endl;
+	//cout<<"[DEBUG] Temp socket : "<<clientTemp.sin_port<<endl;
 	#endif
 	if(!(receivedMessage<0))
 	{
@@ -207,8 +208,8 @@ int Client :: joinNetwork(int portNo,string ip)
         	boost::split(listMessages,msg,boost::is_any_of("%"));
 		int code = atoi(listMessages[0].c_str());
 		#ifdef DEBUG
-		cout<<"[DEBUG] chat code received\t"<<code<<endl;
-		cout<<"Message received\t"<<msg<<endl;
+		//cout<<"[DEBUG] chat code received\t"<<code<<endl;
+		//cout<<"Message received\t"<<msg<<endl;
 		#endif
 		if(code == LIST_OF_USERS)
 		{
@@ -282,13 +283,13 @@ void Client :: sender()
 	/* sender should take input from console and send it to the leader 
 	along with pushing the message in the blocking Queue*/
 	char msgBuffer[500];
-	stringstream tempStr;
+	
 	while(true)
 	{
 		
 		
 		bzero(msgBuffer,501);
-		cin.get(msgBuffer,500);	
+		cin.getline(msgBuffer, sizeof(msgBuffer));	
 		if(cin.eof())
 		{
 			// checks for Control-D
@@ -297,9 +298,13 @@ void Client :: sender()
 		
 		// send the message to the leader
 		string msg = string(msgBuffer);
+		stringstream tempStr;
 		tempStr<<CHAT<<"%"<<msg;
 		string finalMsg = tempStr.str();
 		int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+		#ifdef DEBUG
+		cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
+		#endif
 		if(sendResult == -1)
 	        {
         	        #ifdef DEBUG
@@ -317,39 +322,24 @@ void Client :: sender()
 
 void Client :: receiver()
 {
+	struct sockaddr_in clientTemp;
+	socklen_t clientTempLen = sizeof(clientTemp);
+
 	/* receiver thread should wait to receive the message from leader or from 
 	other clients, verify and dequeue it from the blocking queue*/
-	/*
-        bzero((char *) &clientAddress, sizeof(clientAddress));
-        clientAddress.sin_family = AF_INET;
-        //clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
-        inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
 
-        #ifdef DEBUG    
-        //cout<<"before bind"<<endl;
-        #endif
-
-        // randomly generated port of client
-        while(true) {
-                
-                int range = MAX_PORTNO - MIN_PORTNO + 1;
-                clientPort = rand() % range + MIN_PORTNO;
-                clientAddress.sin_port = htons(clientPort);
-                
-                if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
-                        cerr << "Error: Cannot bind socket on " <<clientPort<<endl;
-                }else   
-                        break;
-        
-        } */
 
 	socklen_t len = sizeof(clientAddress);
 	while(true)
 	{
 		char readBuffer[500];
 		bzero(readBuffer,501);
-		socklen_t len = sizeof(clientAddress);
-		int numChar = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
+		
+			
+		#ifdef DEBUG
+		cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
+		#endif
+		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
 		if(numChar<0)
 		{
 			#ifdef DEBUG
@@ -358,6 +348,9 @@ void Client :: receiver()
 		}
 		else
 		{
+			#ifdef DEBUG
+			cout<<"[DEBUG] Recevied message "<<readBuffer<<endl;
+			#endif
 			string msg = string(readBuffer);
 			// splitting the message on the basis of %
 			vector<string> msgSplit;
@@ -375,17 +368,49 @@ void Client :: receiver()
 			}
 			else if(code == JOIN)
 			{
-
-				
+				// if the client receives a join request
+				// send the leader's Ip and port to the respective client
+				if(!leader)
+				{
+					stringstream resolveMsg;
+					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
+					string msg = resolveMsg.str();
+					//send the leaderIp & leaderPort to client
+					vector<string> ipPort;
+					boost::split(ipPort,msgSplit[1],boost::is_any_of(":"));
+					char *ip = const_cast<char*>(ipPort[0].c_str());
+                        		int portNum = atoi(ipPort[1].c_str());
+						
+					struct sockaddr_in tempClient;
+					bzero((char *) &tempClient, sizeof(tempClient));
+        				tempClient.sin_family = AF_INET;
+        				inet_pton(AF_INET,ip,&(tempClient.sin_addr));
+        				tempClient.sin_port = htons(portNum);
+					
+					
+					int sendResult = sendMessage(clientFd,msg,tempClient);
+					if(sendResult < 0)
+					{
+						#ifdef
+						cout<<"[DEBUG]message could not be sent to the client"<<endl;
+						#endif
+					}					
+				}
+								
 			}
 			else if(code == DELETE)
 			{
-				
+				// if the chat code sent is DELETE then 
+				//remove that user's entry from chatRoom
+				string key = msgSplit[1];
+				map<string,string> :: iterator mite;
+				mite = chatRoom.find(key);
+				chatRoom.erase(mite);
+				cout<<msgSplit[2]<<endl;		
 			}
 			cout<<endl;
 			 
 		}
-		break;	
 
 		//TODO: verify the message and then accordingly dequeue it from the queue	
 	}
