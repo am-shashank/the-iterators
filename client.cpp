@@ -165,14 +165,14 @@ int Client :: joinNetwork(int portNo,string ip)
 	
 	// receiving msg
 	#ifdef DEBUG
-	cout<<"before receiving message"<<endl;
+	cout<<"[DEBUG]before receiving message"<<endl;
 	#endif
 	char readBuffer[500];
 	bzero(readBuffer,501);
 	int receivedMessage = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
 	
 	#ifdef DEBUG
-	cout<<"Message received\t"<<receivedMessage<<endl;
+	cout<<"[DEBUG]Message received\t"<<receivedMessage<<endl;
 	#endif
 	if(!(receivedMessage<0))
 	{
@@ -286,10 +286,40 @@ void Client :: receiver()
 {
 	/* receiver thread should wait to receive the message from leader or from 
 	other clients, verify and dequeue it from the blocking queue*/
+	socklen_t len = sizeof(clientAddress);
 	while(true)
 	{
+		char readBuffer[500];
 		socklen_t len = sizeof(clientAddress);
-		//string msg = receivedMessage();		
+		int numChar = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
+		if(numChar<0)
+		{
+			#ifdef DEBUG
+			cout<<"[DEBUG]No message received"<<endl;
+			#endif
+		}
+		else
+		{
+			string msg = string(readBuffer);
+			// splitting the message on the basis of %
+			vector<string> msgSplit;
+			vector<string> :: iterator ite;
+			boost::split(msgSplit,msg,boost::is_any_of("%"));
+			ite = msgSplit.begin();
+			ite++;
+			int code = atoi(msgSplit[0].c_str());
+			if(code == CHAT)
+			{
+				for(;ite!= msgSplit.end();ite++)
+				{
+					cout<<*ite<<"\t";
+				}	
+			}
+			cout<<endl;
+			 
+		}	
+
+		//TODO: verify the message and then accordingly dequeue it from the queue	
 	}
 }
 
