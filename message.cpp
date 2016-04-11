@@ -7,7 +7,6 @@ Message :: Message(int messageType,int seqNum,string message)
 	type = messageType;
 	sequenceNumber = seqNum;
 	buffer = message;
-	seqNum = 0;  // TODO: reset seq number based on results from bully
 }
 Message :: Message(int seqNum,string message)
 {
@@ -32,6 +31,10 @@ string Message :: getMessage()
 	return buffer;
 }
 
+void Message :: setMessage(string message)
+{
+	buffer = message;
+}
 /*
 	Overloading less than operator
 	to assist in sorting of messages
@@ -41,6 +44,8 @@ bool Message::operator<(const Message &m) const
 {
 	return type - m.type;
 }
+
+
 
 Message::~Message() 
 {
