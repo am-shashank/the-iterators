@@ -292,3 +292,18 @@ void Client :: receiver()
 		//string msg = receivedMessage();		
 	}
 }
+
+void Client :: exitChatroom() 
+{
+	#ifdef DEBUG
+	cout<<userName<< " exiting...."<<endl;
+	#endif	
+	stringstream deleteRequest;
+	deleteRequest<<DELETE<<" "<<endl;
+	//sendMessage(clientFd, , leaderAddress);
+	// TODO: close socket, termine thread	
+	close(clientFd);
+	
+	exit(0);
+
+}

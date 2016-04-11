@@ -130,7 +130,8 @@ class Client
 	void setLeaderAttributes(char* ip, int port);
         int joinNetwork(int portNo,string localIp);
 	void sender();
-	void receiver();	
+	void receiver();
+	void exitChatroom();	
 };
 
 
