@@ -119,22 +119,16 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 			break;
 		case DELETE:
 			{
-				// Delete user from map 
-				string user = messageSplit[1];
-				string ipPort = messageSplit[2];
+				// Delete user from map
+				string user = chatRoom[ipPort];
 				chatRoom.erase(ipPort); 
 				
-				// Split IP and Port and send updated list of users in chatroom
-				vector<string> ipPortSplit;
-    				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
-				string clientIp = ipPortSplit[0];
-				int clientPort = atoi(ipPortSplit[1].c_str());
 				sendListUsers(clientIp, clientPort); 
 			
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << CHAT << "%NOTICE " << user << " joined on " << ipPort;
-				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				response << CHAT << "%NOTICE " << user << " left the chat or just crashed";
+				Message responseObj = Messagei(CHAT, ++seqNum, response.str());
 				q.push(responseObj);		
 
 			}	
