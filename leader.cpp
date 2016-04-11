@@ -78,7 +78,11 @@ void Leader::printStartMessage() {
 /*   Parse the encoded message into a Message object
      and order using sequence number and add to Queue
 */
-void Leader::parseMessage(char *message) {
+void Leader::parseMessage(char *message, string clientIp, int clientPort) {
+	stringstream clientIdStream;
+	clientIdStream<<clientIp<<":"<<clientPort;
+	string clientId = clientIdStream.str();
+
 	// spliting the encoded message
     	vector<string> messageSplit;
     	boost::split(messageSplit,message,boost::is_any_of("%"));
@@ -93,10 +97,10 @@ void Leader::parseMessage(char *message) {
 				chatRoom[ipPort] = user;
 				
 				// Split IP and Port and send list of users in chatroom
-				vector<string> ipPortSplit;
+				/* vector<string> ipPortSplit;
     				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
 				string clientIp = ipPortSplit[0];
-				int clientPort = atoi(ipPortSplit[1].c_str());
+				int clientPort = atoi(ipPortSplit[1].c_str());*/
 				sendListUsers(clientIp, clientPort); 
 			
 				// add NOTICE message to Queue	
@@ -109,11 +113,31 @@ void Leader::parseMessage(char *message) {
 		case CHAT:
 			{
 				/**** Ordering of messages ****/
-				Message responseObj = Message(CHAT,++seqNum, string(message));
+				Message responseObj = Message(CHAT,++seqNum, string(chatRoom.get(clientId) + ":: " + message));
 				q.push(responseObj);
 			}
 			break;
-		case DELETE:	
+		case DELETE:
+			{
+				// Delete user from map 
+				string user = messageSplit[1];
+				string ipPort = messageSplit[2];
+				chatRoom.erase(ipPort); 
+				
+				// Split IP and Port and send updated list of users in chatroom
+				vector<string> ipPortSplit;
+    				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
+				string clientIp = ipPortSplit[0];
+				int clientPort = atoi(ipPortSplit[1].c_str());
+				sendListUsers(clientIp, clientPort); 
+			
+				// add NOTICE message to Queue	
+				stringstream response;	
+				response << CHAT << "%NOTICE " << user << " joined on " << ipPort;
+				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				q.push(responseObj);		
+
+			}	
 			break;
 		default:
 			cout<<"Invalid chat code sent by participant"<<endl;
@@ -127,6 +151,9 @@ void Leader::parseMessage(char *message) {
 */
 
 void Leader::producerTask() {
+	#ifdef DEBUG
+	cout<<"[DEBUG] Producer thread started"<<endl;
+	#endif
 	while (true) {
 		struct sockaddr_in clientAdd;
 		socklen_t clientLen = sizeof(clientAdd);
@@ -134,10 +161,14 @@ void Leader::producerTask() {
         	bzero(readBuffer, 501);
 		        
         	recvfrom(socketFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+		char clientIp[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
+		
 		#ifdef DEBUG
-        	cout<<"[DEBUG] Received from Client:" << readBuffer<<endl;
+        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<clientAdd.sin_port<<" - "<<readBuffer<<endl;
 		#endif
-        	parseMessage(readBuffer);
+
+        	parseMessage(readBuffer,string(clientIp), clientAdd.sin_port);
 	}
 }
 
@@ -145,10 +176,25 @@ void Leader::producerTask() {
      and multi-casting it to participants in the chatroom
 */
 void Leader::consumerTask() {
+	#ifdef DEBUG
+	cout<<"[DEBUG]Consumer thread started"<<endl;
+	#endif	
 	while(true) {
 		// TODO: wait for ACKs from everyone
-		Message m = q.pop();
+	
+		/* struct sockaddr_in clientAdd;
+		socklen_t clientLen = sizeof(clientAdd);
+        	char readBuffer[500];
+        	bzero(readBuffer, 501);
+	
+		recvfrom(socketFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+		#ifdef DEBUG
+        	cout<<"[DEBUG] Received from Client:" << readBuffer<<endl;
+		#endif
+		*/ 
 		
+		Message m = q.pop();
+			
 		// TODO: Multi-cast to everyone in the group 
 		map<string,string>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
@@ -175,6 +221,9 @@ void Leader::consumerTask() {
 }
 
 void Leader::sendListUsers(string clientIp, int clientPort) {
+	#ifdef DEBUG
+	cout<<"Sending new list of users "<<endl;
+	#endif
 	map<string,string>::iterator it;
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << portNo << " (Leader) %";
