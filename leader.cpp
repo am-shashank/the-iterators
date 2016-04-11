@@ -119,16 +119,13 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 		case DELETE:
 			{
 				// Delete user from map
-				string ipPort = messageSplit[1];
-				string user = chatRoom[ipPort];
-				chatRoom.erase(ipPort); 
+				string user = chatRoom[clientId];
+				chatRoom.erase(clientId); 
 				
-				sendListUsers(clientIp, clientPort); 
-			
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << CHAT << "%NOTICE " << user << " left the chat or just crashed";
-				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				response << clientId << "%NOTICE " << user << " left the chat or just crashed";
+				Message responseObj = Message(DELETE, ++seqNum, response.str());
 				q.push(responseObj);		
 
 			}	

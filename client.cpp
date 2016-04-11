@@ -288,11 +288,11 @@ void Client :: sender()
 		
 		bzero(msgBuffer,501);
 		cin.getline(msgBuffer, sizeof(msgBuffer));	
-		/*if(cin.eof())
+		if(cin.eof())
 		{
 			// checks for Control-D
 			exitChatroom();
-		}*/	
+		}	
 		
 		// send the message to the leader
 		string msg = string(msgBuffer);
