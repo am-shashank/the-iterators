@@ -65,22 +65,18 @@ int sendMessage(int fd,string msg,sockaddr_in addr)
 
 }
 // receive message which returns the message received
-string receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen)
+int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 {
 
-	char readBuffer[500];
-	string msg = "";
-	bzero(readBuffer,501);
-	int num_char = recvfrom(fd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *) addr,addrLen);
+	//char readBuffer[500];
+	//string msg = "";
+	//bzero(readBuffer,501);
+	int num_char = recvfrom(fd,buffer,sizeof(buffer),0,(struct sockaddr *) addr,addrLen);
 	if(num_char<0)
                 {
                          cout<<"error reading from socket\n"<<endl;
                 }
-	else
-	{
-		msg = string(readBuffer);
-	}
-	return msg;
+	return num_char;
 	
 }
 

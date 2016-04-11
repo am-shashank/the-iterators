@@ -57,21 +57,21 @@ int Client :: establishConnection()
                 }
 
 	#ifdef DEBUG
-	cout<<"socket created"<<endl;
+	//cout<<"socket created"<<endl;
 	#endif	
 	
 	// setting the attributes for the server
 	setLeaderAttributes(leaderIp,leaderPort);
 
 	#ifdef DEBUG
-	cout<<"before setting client address"<<endl;
+	//cout<<"before setting client address"<<endl;
 	#endif
 
 	// get local ip
         clientIp = getIp();
 
 	#ifdef DEBUG
-        cout << "client ip:\t"<<clientIp<<endl;
+        cout << "[DEBUG]client ip:\t"<<clientIp<<endl;
 	#endif
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
@@ -80,7 +80,7 @@ int Client :: establishConnection()
 	inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
 
 	#ifdef DEBUG	
-	cout<<"before bind"<<endl;
+	//cout<<"before bind"<<endl;
 	#endif
 
 	// randomly generated port of client
@@ -96,9 +96,20 @@ int Client :: establishConnection()
                         break;
 
         }
-	//cout<<"after bind"<<endl;
+
 
         clientAddress.sin_port = htons(clientPort);
+	// set timeout for client socket
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 5000;
+	
+	if(setsockopt(clientFd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout))<0)
+	{
+		#ifdef DEBUG
+		cout<<"[DEBUG]error occurred while executing setsockopt()"<<endl;
+		#endif
+	}
 
 	//since bind was successful print the message on client's screen
 	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
@@ -141,8 +152,10 @@ int Client :: joinNetwork(int portNo,string ip)
 	string msg = joinMsg.str();
 
 	int sendResult = sendMessage(clientFd,msg,leaderAddress);
-
-	if(sendResult == -1)
+	#ifdef DEBUG
+	cout<<"[DEBUG]message sent\t"<<sendResult<<endl;
+	#endif
+	if(sendResult < 0)
 	{
 		#ifdef DEBUG
 		cout<<"[DEBUG]message could not be sent"<<endl;
@@ -151,30 +164,63 @@ int Client :: joinNetwork(int portNo,string ip)
 
 	
 	// receiving msg
-
-	string receivedMessage = receiveMessage(clientFd,&clientAddress,&len);
-	if(!(receivedMessage == ""))
+	#ifdef DEBUG
+	cout<<"before receiving message"<<endl;
+	#endif
+	char readBuffer[500];
+	bzero(readBuffer,501);
+	int receivedMessage = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
+	
+	#ifdef DEBUG
+	cout<<"Message received\t"<<receivedMessage<<endl;
+	#endif
+	if(!(receivedMessage<0))
 	{
 		//cout<<"Message received\t"<<receivedMessage<<endl;
 		//split the message
+		#ifdef DEBUG
+		//cout<<"[DEBUG]Received Message\t"<<receivedMessage<<endl;
+		#endif
 		vector<string> listMessages ;
-        	boost::split(listMessages,receivedMessage,boost::is_any_of("%"));
+		string msg = string(readBuffer);
+        	boost::split(listMessages,msg,boost::is_any_of("%"));
 		int code = atoi(listMessages[0].c_str());
 		if(code == LIST_OF_USERS)
 		{
 			// leader sent back the list of users
 			cout<<"Succeeded, current users:"<<endl;
 			vector<string> :: iterator ite;
+			int size = listMessages.size();
+			#ifdef DEBUG
+			//cout<<"Size after splitting on %\t"<<size<<endl;
+			#endif
 			ite = listMessages.begin();
-			ite = ite+2;
+			ite = ite+1;
+			int flag = 0;
 			for(;ite != listMessages.end();ite++)
 			{
 				string element = *ite;
-				vector<string> listUsers;
-				boost::split(listUsers,element,boost::is_any_of("&"));
-				// users added to the map
-				chatRoom[listUsers[1]] = listUsers[0];
-				cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl; 	
+				#ifdef DEBUG
+				//cout<<"element here\t"<<element<<endl;
+				#endif
+				if(!(element == ""))
+				{
+					vector<string> listUsers;
+					listUsers.clear();
+					boost::split(listUsers,element,boost::is_any_of("&"));
+				
+					#ifdef DEBUG
+					//cout<<"size after splitting on &\t"<<listUsers.size()<<endl;
+					#endif
+					// users added to the map
+					if(flag != 0)
+					{
+						chatRoom[listUsers[1]] = listUsers[0];
+					}
+					flag++;
+					cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl;
+					listUsers.clear();
+				} 	
 			}
 			// all users got displayed
 			return 1;
