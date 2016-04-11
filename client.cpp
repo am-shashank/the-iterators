@@ -1,16 +1,17 @@
 #include <iostream>
-#include<string>
-#include<cstring>
+#include <string>
+#include <cstring>
 #include <boost/algorithm/string.hpp>
-#include<map>
-#include<vector>
+#include <map>
+#include <vector>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <net/if.h>
 #include <arpa/inet.h>
-#include<sstream>
+#include <sstream>
+#include <thread>
 #include "utils.h"
 #include "globals.h"
 
@@ -55,21 +56,33 @@ int Client :: establishConnection()
                         return 0;
                 }
 
-	 
-	cout<<"socket created"<<endl;	
+	#ifdef DEBUG
+	cout<<"socket created"<<endl;
+	#endif	
 	
 	// setting the attributes for the server
 	setLeaderAttributes(leaderIp,leaderPort);
+
+	#ifdef DEBUG
 	cout<<"before setting client address"<<endl;
+	#endif
+
 	// get local ip
         clientIp = getIp();
+
+	#ifdef DEBUG
         cout << "client ip:\t"<<clientIp<<endl;
+	#endif
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
         clientAddress.sin_family = AF_INET;
         //clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
 	inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
+
+	#ifdef DEBUG	
 	cout<<"before bind"<<endl;
+	#endif
+
 	// randomly generated port of client
 	while(true) {
 
@@ -90,11 +103,33 @@ int Client :: establishConnection()
 	//since bind was successful print the message on client's screen
 	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
 
-	joinNetwork(clientPort,clientIp);	
+	int success = joinNetwork(clientPort,clientIp);
+	if(success)
+	{
+	/* if the client successfully joined the chat room start 3 threads for the client :- send,receive, heartbeat*/
+
+		#ifdef DEBUG
+		cout<<"starting client threads"<<endl;
+		#endif
+
+		thread sendMsg(&Client:: sender, this);
+        	thread receiveMsg(&Client:: receiver, this);
+        	sendMsg.join();
+        	receiveMsg.join();
+ 
+	}
+	else
+	{
+		// no leader in chat room
+		#ifdef DEBUG
+		cout<<"no leader in the chat room.. hence exiting"<<endl;
+		#endif	
+		exit(1);
+	}	
 		
 }
 
-void Client :: joinNetwork(int portNo,string ip)
+int Client :: joinNetwork(int portNo,string ip)
 {
 	// calculate local ip
 	
@@ -131,7 +166,7 @@ void Client :: joinNetwork(int portNo,string ip)
 			cout<<"Succeeded, current users:"<<endl;
 			vector<string> :: iterator ite;
 			ite = listMessages.begin();
-			ite++;
+			ite = ite+2;
 			for(;ite != listMessages.end();ite++)
 			{
 				string element = *ite;
@@ -142,7 +177,7 @@ void Client :: joinNetwork(int portNo,string ip)
 				cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl; 	
 			}
 			// all users got displayed
-			return;
+			return 1;
 		}
 		else if(code == RESOLVE_LEADER)
 		{
@@ -166,6 +201,48 @@ void Client :: joinNetwork(int portNo,string ip)
 		#endif
 		// no chat is active
 		cout<<"Sorry, no chat is active on "<<leaderIp<<":"<<leaderPort<<", try again later."<<endl<<"Bye."<<endl;
+		return 0;
 	}
 				
-} 
+}
+ 
+void Client :: sender()
+{
+	/* sender should take input from console and send it to the leader 
+	along with pushing the message in the blocking Queue*/
+	char msgBuffer[500];
+	while(true)
+	{
+		
+		
+		bzero(msgBuffer,501);
+		cin.get(msgBuffer,500);		
+		
+		// send the message to the leader
+		string msg = string(msgBuffer);
+		int sendResult = sendMessage(clientFd,msg,leaderAddress);
+		if(sendResult == -1)
+	        {
+        	        #ifdef DEBUG
+                	cout<<"[DEBUG]message could not be sent to the leader"<<endl;
+                	#endif
+        	}
+		// enque the message in the clientQueue
+		
+		// create an object of the message class
+		Message m(msg);
+		q.push(m);		
+		
+	}
+}
+
+void Client :: receiver()
+{
+	/* receiver thread should wait to receive the message from leader or from 
+	other clients, verify and dequeue it from the blocking queue*/
+	while(true)
+	{
+		socklen_t len = sizeof(clientAddress);
+		//string msg = receivedMessage();		
+	}
+}

@@ -9,6 +9,15 @@ Message :: Message(int messageType,int seqNum,string message)
 	buffer = message;
 	seqNum = 0;  // TODO: reset seq number based on results from bully
 }
+Message :: Message(int seqNum,string message)
+{
+	sequenceNumber = seqNum;
+	buffer = message;
+}
+Message :: Message(string message)
+{
+	buffer = message;
+}
 int Message :: getType()
 {
 	return type;

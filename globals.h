@@ -35,7 +35,8 @@ class Message
 	string buffer;
 
 	public:
-
+	Message(string message);
+	Message(int seqNum,string message);
 	Message(int messageType,int seqNum,string message);
 	int getType();
 	int getSequenceNumber();
@@ -55,6 +56,20 @@ class BlockingPQueue
 		void push(const Message &m);
 		Message pop();
 
+};
+class ClientQueue
+{
+	private:
+
+	queue<Message> clientQueue;
+	mutex qmtx;
+	condition_variable myCondition;
+	
+	public:
+
+	void push(const Message &m);
+	Message pop();
+	
 };
 
 class Leader 
@@ -95,18 +110,26 @@ class Client
         char* leaderIp;
         int leaderPort;
 	int clientPort;
-	string clientIp;	
-        map<string,string> chatRoom;
+	string clientIp;
+	// client socket descriptor
         int clientFd;
         struct sockaddr_in leaderAddress, clientAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
-        
+
+	// hash map to store list of active users       
+        map<string,string> chatRoom;
+
+	// object for blocking queue for client
+        ClientQueue q;
+
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
 	void setLeaderAttributes(char* ip, int port);
-        void joinNetwork(int portNo,string localIp);
+        int joinNetwork(int portNo,string localIp);
+	void sender();
+	void receiver();	
 };
 
 
