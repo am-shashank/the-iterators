@@ -373,6 +373,15 @@ void Client :: receiver()
 					cout<<*ite<<"\t";
 				}	
 			}
+			else if(code == JOIN)
+			{
+
+				
+			}
+			else if(code == DELETE)
+			{
+				
+			}
 			cout<<endl;
 			 
 		}
