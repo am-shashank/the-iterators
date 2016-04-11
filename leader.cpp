@@ -113,7 +113,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 		case CHAT:
 			{
 				/**** Ordering of messages ****/
-				Message responseObj = Message(CHAT,++seqNum, string(chatRoom.get(clientId) + ":: " + message));
+				Message responseObj = Message(CHAT,++seqNum, chatRoom[clientId] + ":: " + message);
 				q.push(responseObj);
 			}
 			break;

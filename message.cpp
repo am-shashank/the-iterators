@@ -33,7 +33,7 @@ string Message :: getMessage()
 
 void Message :: setMessage(string message)
 {
-	buffer = message
+	buffer = message;
 }
 /*
 	Overloading less than operator

@@ -41,6 +41,7 @@ class Message
 	int getType();
 	int getSequenceNumber();
 	string getMessage();
+	void setMessage(string message);
         bool operator<(const Message &m1) const;
 	
 	~Message(); 
@@ -99,7 +100,7 @@ class Leader
 		
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
-		void parseMessage(char *message);
+		void parseMessage(char *message, string clientIp, int clientPort);
 		void sendListUsers(string clientIp, int clientPort);
 };
 
