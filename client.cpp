@@ -24,7 +24,7 @@ using namespace std;
 Client :: Client(string name,string leaderIpPort)
 {
 	userName = name;
-	leader = false;
+	isLeader = false;
        	vector<string> ipPortStr;
         boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
         leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -370,7 +370,7 @@ void Client :: receiver()
 			{
 				// if the client receives a join request
 				// send the leader's Ip and port to the respective client
-				if(!leader)
+				if(!isLeader)
 				{
 					stringstream resolveMsg;
 					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
@@ -391,7 +391,7 @@ void Client :: receiver()
 					int sendResult = sendMessage(clientFd,msg,tempClient);
 					if(sendResult < 0)
 					{
-						#ifdef
+						#ifdef DEBUG
 						cout<<"[DEBUG]message could not be sent to the client"<<endl;
 						#endif
 					}					

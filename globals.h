@@ -112,7 +112,7 @@ class Client
         int leaderPort;
 	int clientPort;
 	string clientIp;
-	flag leader;
+	bool isLeader;
 	// client socket descriptor
         int clientFd;
         struct sockaddr_in leaderAddress, clientAddress;
