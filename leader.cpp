@@ -159,10 +159,10 @@ void Leader::producerTask() {
 		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
 		
 		#ifdef DEBUG
-        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<clientAdd.sin_port<<" - "<<readBuffer<<endl;
+        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<ntohs(clientAdd.sin_port)<<" - "<<readBuffer<<endl;
 		#endif
 
-        	parseMessage(readBuffer,string(clientIp), clientAdd.sin_port);
+        	parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
 	}
 }
 
@@ -227,6 +227,7 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	bzero((char *) &clientAdd, sizeof(clientAdd));
 	clientAdd.sin_family = AF_INET;
 	inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
+	clientAdd.sin_port = htons(clientPort);
 
 	string response = ss.str();
 	#ifdef DEBUG
