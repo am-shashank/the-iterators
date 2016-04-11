@@ -8,6 +8,15 @@ Message :: Message(int messageType,int seqNum,string message)
 	sequenceNumber = seqNum;
 	buffer = message;
 }
+Message :: Message(int seqNum,string message)
+{
+	sequenceNumber = seqNum;
+	buffer = message;
+}
+Message :: Message(string message)
+{
+	buffer = message;
+}
 int Message :: getType()
 {
 	return type;

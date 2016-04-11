@@ -57,7 +57,7 @@ string getIp(){
 int sendMessage(int fd,string msg,sockaddr_in addr)
 {
 	char writeBuffer[500];
-	bzero(writeBuffer,0);
+	bzero(writeBuffer,501);
 	socklen_t len = sizeof(addr);
 	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
         int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
@@ -70,7 +70,7 @@ string receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen)
 
 	char readBuffer[500];
 	string msg = "";
-	bzero(readBuffer,0);
+	bzero(readBuffer,501);
 	int num_char = recvfrom(fd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *) addr,addrLen);
 	if(num_char<0)
                 {
