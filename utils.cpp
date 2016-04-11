@@ -71,11 +71,14 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	//char readBuffer[500];
 	//string msg = "";
 	//bzero(readBuffer,501);
-	int num_char = recvfrom(fd,buffer,sizeof(buffer),0,(struct sockaddr *) addr,addrLen);
+	int num_char = recvfrom(fd,buffer,500,0,(struct sockaddr *) addr,addrLen);
+	#ifdef DEBUG
+	cout<<"[DEBUG]Inside utils.cpp message received\t"<<buffer<<endl;
+	#endif
 	if(num_char<0)
-                {
-                         cout<<"error reading from socket\n"<<endl;
-                }
+        {
+        	cout<<"error reading from socket\n"<<endl;
+        }
 	return num_char;
 	
 }

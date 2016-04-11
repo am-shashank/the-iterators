@@ -126,7 +126,7 @@ int Client :: establishConnection()
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
         	sendMsg.join();
-        	receiveMsg.join();
+        	//receiveMsg.join();
  
 	}
 	else
@@ -185,6 +185,10 @@ int Client :: joinNetwork(int portNo,string ip)
 		string msg = string(readBuffer);
         	boost::split(listMessages,msg,boost::is_any_of("%"));
 		int code = atoi(listMessages[0].c_str());
+		#ifdef DEBUG
+		cout<<"[DEBUG] chat code received\t"<<code<<endl;
+		cout<<"Message received\t"<<msg<<endl;
+		#endif
 		if(code == LIST_OF_USERS)
 		{
 			// leader sent back the list of users
@@ -257,16 +261,24 @@ void Client :: sender()
 	/* sender should take input from console and send it to the leader 
 	along with pushing the message in the blocking Queue*/
 	char msgBuffer[500];
+	stringstream tempStr;
 	while(true)
 	{
 		
 		
 		bzero(msgBuffer,501);
-		cin.get(msgBuffer,500);		
+		cin.get(msgBuffer,500);	
+		if(cin.eof())
+		{
+			// checks for Control-D
+			exitChatroom();
+		}	
 		
 		// send the message to the leader
 		string msg = string(msgBuffer);
-		int sendResult = sendMessage(clientFd,msg,leaderAddress);
+		tempStr<<CHAT<<"%"<<msg;
+		string finalMsg = tempStr.str();
+		int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
 		if(sendResult == -1)
 	        {
         	        #ifdef DEBUG
@@ -290,6 +302,7 @@ void Client :: receiver()
 	while(true)
 	{
 		char readBuffer[500];
+		bzero(readBuffer,501);
 		socklen_t len = sizeof(clientAddress);
 		int numChar = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
 		if(numChar<0)
@@ -317,7 +330,8 @@ void Client :: receiver()
 			}
 			cout<<endl;
 			 
-		}	
+		}
+		break;	
 
 		//TODO: verify the message and then accordingly dequeue it from the queue	
 	}
@@ -326,14 +340,21 @@ void Client :: receiver()
 void Client :: exitChatroom() 
 {
 	#ifdef DEBUG
-	cout<<userName<< " exiting...."<<endl;
+	cout<<"[DEBUG]"<<userName<< " exiting...."<<endl;
 	#endif	
 	stringstream deleteRequest;
-	deleteRequest<<DELETE<<" "<<endl;
-	//sendMessage(clientFd, , leaderAddress);
+	deleteRequest<<DELETE<<"%"<<clientIp<<":"<<clientPort;
+
+	string deleteMsg = deleteRequest.str(); 	
+	int sendResult = sendMessage(clientFd,deleteMsg,leaderAddress);
+	if(sendResult < 0)
+	{
+		#ifdef DEBUG
+		cout<<"[DEBUG]delete request could not be sent\t"<<endl;
+		#endif
+	}
 	// TODO: close socket, termine thread	
 	close(clientFd);
-	
 	exit(0);
 
 }
