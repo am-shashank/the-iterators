@@ -98,7 +98,7 @@ int Client :: establishConnection()
         }
 
 
-        clientAddress.sin_port = htons(clientPort);
+        //clientAddress.sin_port = htons(clientPort);
 	// set timeout for client socket
 	struct timeval timeout;
 	timeout.tv_sec = 0;
@@ -298,6 +298,30 @@ void Client :: receiver()
 {
 	/* receiver thread should wait to receive the message from leader or from 
 	other clients, verify and dequeue it from the blocking queue*/
+	/*
+        bzero((char *) &clientAddress, sizeof(clientAddress));
+        clientAddress.sin_family = AF_INET;
+        //clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
+        inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
+
+        #ifdef DEBUG    
+        //cout<<"before bind"<<endl;
+        #endif
+
+        // randomly generated port of client
+        while(true) {
+                
+                int range = MAX_PORTNO - MIN_PORTNO + 1;
+                clientPort = rand() % range + MIN_PORTNO;
+                clientAddress.sin_port = htons(clientPort);
+                
+                if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
+                        cerr << "Error: Cannot bind socket on " <<clientPort<<endl;
+                }else   
+                        break;
+        
+        } */
+
 	socklen_t len = sizeof(clientAddress);
 	while(true)
 	{
