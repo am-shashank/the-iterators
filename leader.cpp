@@ -93,8 +93,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 			{
 				// Add new user to map 
 				string user = messageSplit[1];
-				string ipPort = messageSplit[2];
-				chatRoom[ipPort] = user;
+				chatRoom[clientId] = user;
 				
 				// Split IP and Port and send list of users in chatroom
 				/* vector<string> ipPortSplit;
@@ -105,7 +104,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 			
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << CHAT << "%NOTICE " << user << " joined on " << ipPort;
+				response << CHAT << "%NOTICE " << user << " joined on " << clientId;
 				Message responseObj = Message(CHAT, ++seqNum, response.str());
 				q.push(responseObj);		
 			}			
@@ -160,10 +159,10 @@ void Leader::producerTask() {
 		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
 		
 		#ifdef DEBUG
-        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<clientAdd.sin_port<<" - "<<readBuffer<<endl;
+        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<ntohs(clientAdd.sin_port)<<" - "<<readBuffer<<endl;
 		#endif
 
-        	parseMessage(readBuffer,string(clientIp), clientAdd.sin_port);
+        	parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
 	}
 }
 
@@ -216,9 +215,6 @@ void Leader::consumerTask() {
 }
 
 void Leader::sendListUsers(string clientIp, int clientPort) {
-	#ifdef DEBUG
-	cout<<"Sending new list of users "<<endl;
-	#endif
 	map<string,string>::iterator it;
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << portNo << " (Leader) %";
@@ -232,8 +228,12 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	clientAdd.sin_family = AF_INET;
 	inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
 	clientAdd.sin_port = htons(clientPort);
-	
+
 	string response = ss.str();
+	#ifdef DEBUG
+	cout<<"Sending List of users to "<<clientIp<<":"<<clientPort<<" "<<response<<endl;
+	cout<<response.length()<<endl;
+	#endif
 	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
 
 }

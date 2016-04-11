@@ -14,7 +14,7 @@
 #include <thread>
 #include "utils.h"
 #include "globals.h"
-
+#include <sys/time.h>
 #define MIN_PORTNO 2000
 #define MAX_PORTNO 50000
 
@@ -76,7 +76,7 @@ int Client :: establishConnection()
 
 	bzero((char *) &clientAddress, sizeof(clientAddress));
         clientAddress.sin_family = AF_INET;
-        //clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
+        // clientAddress.sin_addr.s_addr = inet_addr(INADDR_ANY);
 	inet_pton(AF_INET,clientIp.c_str(),&(clientAddress.sin_addr));
 
 	#ifdef DEBUG	
@@ -84,11 +84,21 @@ int Client :: establishConnection()
 	#endif
 
 	// randomly generated port of client
+	struct timeval t1;
+        gettimeofday(&t1, NULL);
+        srand(t1.tv_usec * t1.tv_sec);
+	
 	while(true) {
 
                 int range = MAX_PORTNO - MIN_PORTNO + 1;
                 clientPort = rand() % range + MIN_PORTNO;
+		#ifdef DEBUG
+		cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
+		#endif
                 clientAddress.sin_port = htons(clientPort);
+		#ifdef DEBUG
+		cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
+		#endif
 
                 if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
                         cerr << "Error: Cannot bind socket on " <<clientPort<<endl;
@@ -96,6 +106,10 @@ int Client :: establishConnection()
                         break;
 
         }
+	
+	#ifdef DEBUG
+	cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
+	#endif
 
 
         //clientAddress.sin_port = htons(clientPort);
@@ -167,12 +181,19 @@ int Client :: joinNetwork(int portNo,string ip)
 	#ifdef DEBUG
 	cout<<"[DEBUG]before receiving message"<<endl;
 	#endif
+
+	struct sockaddr_in clientTemp;
+	socklen_t clientTempLen = sizeof(clientTemp);
 	char readBuffer[500];
 	bzero(readBuffer,501);
-	int receivedMessage = receiveMessage(clientFd,&clientAddress,&len,readBuffer);
-	
+	#ifdef DEBUG
+	cout <<"[DEBUG]client address port\t"<<clientAddress.sin_port<<endl;
+	#endif
+	int receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
+		
 	#ifdef DEBUG
 	cout<<"[DEBUG]Message received\t"<<receivedMessage<<endl;
+	cout<<"[DEBUG] Temp socket : "<<clientTemp.sin_port<<endl;
 	#endif
 	if(!(receivedMessage<0))
 	{
