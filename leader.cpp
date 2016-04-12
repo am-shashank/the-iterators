@@ -123,6 +123,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 				chatRoom.erase(clientId); 
 				#ifdef DEBUG
 				cout<<"Deleting "<<user<<endl;
+				#endif
 				// add NOTICE message to Queue	
 				stringstream response;	
 				response << clientId << "%NOTICE " << user << " left the chat or just crashed";
@@ -194,7 +195,7 @@ void Leader::consumerTask() {
 			msgStream << m.getType() << "%" << m.getMessage();
 			string msg = msgStream.str();
 			#ifdef DEBUG
-                        cout<<"Sending "<<msg<<" to "<<it->second<<"@"<<it->first<<endl;
+                        cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second<<"@"<<it->first<<endl;
 			#endif
 			
 			vector<string> messageSplit;
@@ -231,8 +232,8 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 
 	string response = ss.str();
 	#ifdef DEBUG
-	cout<<"Sending List of users to "<<clientIp<<":"<<clientPort<<" "<<response<<endl;
-	cout<<response.length()<<endl;
+	cout<<"[DEBUG]Sending List of users to "<<clientIp<<":"<<clientPort<<" "<<response<<endl;
+	cout<<"[DEBUG] Response length: "<< response.length()<<endl;
 	#endif
 	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
 
