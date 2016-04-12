@@ -121,7 +121,8 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 				// Delete user from map
 				string user = chatRoom[clientId];
 				chatRoom.erase(clientId); 
-				
+				#ifdef DEBUG
+				cout<<"Deleting "<<user<<endl;
 				// add NOTICE message to Queue	
 				stringstream response;	
 				response << clientId << "%NOTICE " << user << " left the chat or just crashed";
