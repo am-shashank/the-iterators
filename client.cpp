@@ -24,6 +24,7 @@ using namespace std;
 Client :: Client(string name,string leaderIpPort)
 {
 	userName = name;
+	isLeader = false;
        	vector<string> ipPortStr;
         boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
         leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -110,6 +111,7 @@ int Client :: establishConnection()
 	#ifdef DEBUG
 	cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
 	#endif
+
 
         //clientAddress.sin_port = htons(clientPort);
 	// set timeout for client socket
@@ -325,6 +327,9 @@ void Client :: receiver()
 
 	/* receiver thread should wait to receive the message from leader or from 
 	other clients, verify and dequeue it from the blocking queue*/
+
+
+	socklen_t len = sizeof(clientAddress);
 	while(true)
 	{
 		char readBuffer[500];
@@ -360,6 +365,48 @@ void Client :: receiver()
 				{
 					cout<<*ite<<"\t";
 				}	
+			}
+			else if(code == JOIN)
+			{
+				// if the client receives a join request
+				// send the leader's Ip and port to the respective client
+				if(!isLeader)
+				{
+					stringstream resolveMsg;
+					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
+					string msg = resolveMsg.str();
+					//send the leaderIp & leaderPort to client
+					vector<string> ipPort;
+					boost::split(ipPort,msgSplit[1],boost::is_any_of(":"));
+					char *ip = const_cast<char*>(ipPort[0].c_str());
+                        		int portNum = atoi(ipPort[1].c_str());
+						
+					struct sockaddr_in tempClient;
+					bzero((char *) &tempClient, sizeof(tempClient));
+        				tempClient.sin_family = AF_INET;
+        				inet_pton(AF_INET,ip,&(tempClient.sin_addr));
+        				tempClient.sin_port = htons(portNum);
+					
+					
+					int sendResult = sendMessage(clientFd,msg,tempClient);
+					if(sendResult < 0)
+					{
+						#ifdef DEBUG
+						cout<<"[DEBUG]message could not be sent to the client"<<endl;
+						#endif
+					}					
+				}
+								
+			}
+			else if(code == DELETE)
+			{
+				// if the chat code sent is DELETE then 
+				//remove that user's entry from chatRoom
+				string key = msgSplit[1];
+				map<string,string> :: iterator mite;
+				mite = chatRoom.find(key);
+				chatRoom.erase(mite);
+				cout<<msgSplit[2]<<endl;		
 			}
 			cout<<endl;
 			 
