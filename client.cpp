@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <sstream>
 #include <thread>
+#include <poll.h>
 #include "utils.h"
 #include "globals.h"
 #include <sys/time.h>
@@ -109,7 +110,7 @@ int Client :: establishConnection()
         }
 	
 	#ifdef DEBUG
-	cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
+	//cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
 	#endif
 
 
@@ -135,7 +136,7 @@ int Client :: establishConnection()
 	/* if the client successfully joined the chat room start 3 threads for the client :- send,receive, heartbeat*/
 
 		#ifdef DEBUG
-		cout<<"starting client threads"<<endl;
+		cout<<"[DEBUG]starting client threads"<<endl;
 		#endif
 
 		thread sendMsg(&Client:: sender, this);
@@ -190,7 +191,31 @@ int Client :: joinNetwork(int portNo,string ip)
 	#ifdef DEBUG
 	//cout <<"[DEBUG]client address port\t"<<clientAddress.sin_port<<endl;
 	#endif
-	int receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
+	
+	struct pollfd myPollFd;
+	myPollFd.fd = clientFd;
+	myPollFd.events = POLLIN;
+	int result = poll(&myPollFd,1,3000);
+	int receivedMessage = 0;
+	if(result == -1)
+	{
+		#ifdef DEBUG
+		cout<<"[DEBUG]error in socket timeout"<<endl;
+		#endif	
+	}
+	else if(result == 0)
+	{
+		// socket timeout
+		 // no chat is active
+                cout<<"Sorry, no chat is active on "<<leaderIp<<":"<<leaderPort<<", try again later."<<endl<<"Bye."<<endl;
+                return 0;		
+	}
+	else
+	{
+		receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
+	}
+
+	//int receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
 		
 	#ifdef DEBUG
 	cout<<"[DEBUG]Message received\t"<<receivedMessage<<endl;
@@ -303,7 +328,7 @@ void Client :: sender()
 		string finalMsg = tempStr.str();
 		int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
 		#ifdef DEBUG
-		cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
+		//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
 		#endif
 		if(sendResult == -1)
 	        {
@@ -337,7 +362,7 @@ void Client :: receiver()
 		
 			
 		#ifdef DEBUG
-		cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
+		//cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
 		#endif
 		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
 		if(numChar<0)
@@ -376,6 +401,8 @@ void Client :: receiver()
 					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
 					string msg = resolveMsg.str();
 					//send the leaderIp & leaderPort to client
+
+					/*
 					vector<string> ipPort;
 					boost::split(ipPort,msgSplit[1],boost::is_any_of(":"));
 					char *ip = const_cast<char*>(ipPort[0].c_str());
@@ -387,8 +414,8 @@ void Client :: receiver()
         				inet_pton(AF_INET,ip,&(tempClient.sin_addr));
         				tempClient.sin_port = htons(portNum);
 					
-					
-					int sendResult = sendMessage(clientFd,msg,tempClient);
+					*/
+					int sendResult = sendMessage(clientFd,msg,clientTemp);
 					if(sendResult < 0)
 					{
 						#ifdef DEBUG
@@ -403,9 +430,12 @@ void Client :: receiver()
 				// if the chat code sent is DELETE then 
 				//remove that user's entry from chatRoom
 				string key = msgSplit[1];
-				map<string,string> :: iterator mite;
-				mite = chatRoom.find(key);
-				chatRoom.erase(mite);
+				//map<string,string> :: iterator mite;
+				//mite = chatRoom.find(key);
+				chatRoom.erase(key);
+				#ifdef DEBUG
+				cout <<"[DEBUG]user deleted from the map"<<endl;
+				#endif
 				cout<<msgSplit[2]<<endl;		
 			}
 			cout<<endl;
