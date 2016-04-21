@@ -87,35 +87,102 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	
 }
 
-// method to randomly generate a port number
+// receive message and send ACK
+int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* buffer, int ackFd, sockaddr_in ackAddr)
+{
+	int num_char = recvfrom(fd,buffer,500,0,(struct sockaddr *) addr,addrLen);
+	#ifdef DEBUG
+	cout<<"[DEBUG]Received: "<<buffer<<endl;
+	#endif
+ 	// send ACK TODO: check if IP:port need to be added 
+	sendMessage(ackFd, to_string(ACK), ackAddr);
+	#ifdef DEBUG
+	cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
+	#endif
+	return num_char;
+	
+}
 
+
+/*
+	Bind the specified socket to a random
+	port number that is available	
+*/
 int generatePortNumber(int fd,sockaddr_in &addr)
 {
 	struct timeval t1;
 	int portNum;
-        gettimeofday(&t1, NULL);
-        srand(t1.tv_usec * t1.tv_sec);
+    gettimeofday(&t1, NULL);
+    srand(t1.tv_usec * t1.tv_sec);
 
-        while(true) {
+    while(true) {
 
-                int range = MAX_PORTNO - MIN_PORTNO + 1;
-                portNum = rand() % range + MIN_PORTNO;
-                #ifdef DEBUG
-                //cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
-                #endif
-                addr.sin_port = htons(portNum);
-                #ifdef DEBUG
-                //cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
-                #endif
+    	int range = MAX_PORTNO - MIN_PORTNO + 1;
+        portNum = rand() % range + MIN_PORTNO;
+        #ifdef DEBUG
+       	//cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
+        #endif
+        addr.sin_port = htons(portNum);
+        #ifdef DEBUG
+        //cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
+        #endif
 
-                if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-                        cerr << "Error: Cannot bind socket on " <<portNum<<endl;
-                }else
-                        break;
-
-        }
+        if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        	cerr << "Error: Cannot bind socket on " <<portNum<<endl;
+        }else
+        	break;
+    }
 	return portNum;
 }
 
+/*
+        Send Message with retries
+        Parameters:
+                sendFd - socketFd where the msg needs to be sent to
+                recvFd - socketFd where the ACK needs to be received eg: FD for ACK
+                numReTry - number os retries remaining for sending the message
+*/
+int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, int numRetry) 
+{
+	if(numRetry == 0) 
+	{
+		if(IS_LEADER == 1){		
+			// TODO : declare node as dead
 	
+		}
+		else {
+			// TODO : call for election
+		}
+	}
+			
+	char writeBuffer[500];
+	bzero(writeBuffer,501);
+	socklen_t len = sizeof(addr);
+	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
+	int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+	
+	// wait for ACK with timeout
+	struct sockaddr_in clientAdd;
+	socklen_t clientLen = sizeof(clientAdd);
+	char readBuffer[500];
+	bzero(readBuffer, 501);
+	struct timeval timeout={ RETRY_TIMEOUT, 0}; //set timeout for 2 seconds
+	setsockopt(recvFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
+	int recvLen = recvfrom(recvFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+	// Message Receive Timeout or other error. Resend Message
+	if (recvLen < 0) {
+		#ifdef DEBUG
+		cout<<"[DEBUG] Sending "<<msg<<" failed";
+		#endif 
+		sendMessageWithRetry(sendFd, msg, sockaddr_in, recvFd, numRetry - 1);
+	}
+	return result;
+}
+
+
+Id getId(struct sockaddr_in addr) {
+	char ip[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);	
+	return Id(string(ip), ntohs(addr.sin_port)); 
+}	
 
