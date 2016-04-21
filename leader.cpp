@@ -158,6 +158,15 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 
 			}	
 			break;
+		case HEARTBEAT:
+			{
+				// Format: 3%clientIp:clientPort
+				string client = messageSplit[1];
+				chrono::time_point<chrono::system_clock> curTime;
+                		curTime = chrono::system_clock::now();
+				clientBeat[client] = curTime;
+			}
+			break;
 		default:
 			cout<<"Invalid chat code sent by participant"<<endl;
 
