@@ -118,13 +118,8 @@ void Leader::parseMessage(char *message, Id clientId) {
 				string user = messageSplit[1];
 				chatRoom[clientId] = user;
 				
-				// Split IP and Port and send list of users in chatroom
-				/* vector<string> ipPortSplit;
-    				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
-				string clientIp = ipPortSplit[0];
-				int clientPort = atoi(ipPortSplit[1].c_str());*/
 				sendListUsers(clientId.ip, clientId.port); 
-			
+				
 				// add NOTICE message to Queue	
 				stringstream response;	
 				response << "NOTICE " << user << " joined on " << clientId;
@@ -141,9 +136,10 @@ void Leader::parseMessage(char *message, Id clientId) {
 			break;
 		case DELETE:
 			{
-				// Delete user from map
+				// Delete user from map, ackMap, heartBeatMap
 				string user = chatRoom[clientId];
-				chatRoom.erase(clientId); 
+				chatRoom.erase(clientId);
+				 
 				#ifdef DEBUG
 				cout<<"[DEBUG]Deleting "<<user<<endl;
 				#endif
@@ -158,10 +154,9 @@ void Leader::parseMessage(char *message, Id clientId) {
 		case HEARTBEAT:
 			{
 				// Format: 3%clientIp:clientPort
-				string client = messageSplit[1];
 				chrono::time_point<chrono::system_clock> curTime;
                 		curTime = chrono::system_clock::now();
-				clientBeat[client] = curTime;
+				clientBeat[clientId] = curTime;
 			}
 			break;
 		default:
@@ -286,7 +281,7 @@ void Leader::detectClientFaliure(){
 	while(true){
 		chrono::time_point<chrono::system_clock> curTime;
 		curTime = chrono::system_clock::now();
-		map<string, chrono::time_point<chrono::system_clock>>::iterator it;
+		map<Id, chrono::time_point<chrono::system_clock>>::iterator it;
 		for(it = clientBeat.begin(); it != clientBeat.end(); it++){
 			chrono::time_point<chrono::system_clock> beatTime = it->second;
 			chrono::duration<double> elapsedSeconds = beatTime - curTime;

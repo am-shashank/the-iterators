@@ -84,18 +84,10 @@ class Id {
        public:
                string ip;
                int port;
-               Id(string ip1, int port1) {
-                       ip = ip1;
-                       port = port1;
-               }
-
-               operator string() const { return ip + ":" + to_string(port); }
-               bool operator <(const Id &id2) const {
-                       if(ip == id2.ip)
-                               return port < id2.port;
-                       else
-                               return ip < id2.ip;
-               }
+               Id(string ip1, int port1); 
+	       Id(string IpPort);
+               operator string() const ;
+               bool operator <(const Id &id2) const;
 };
 
 class Leader 
@@ -121,7 +113,7 @@ class Leader
 	// map of users ip and names in chat room
 	map<Id, string> chatRoom;
 
-	// map of users ip:port and ip:ack_port 
+	// map of users ip:port and ip:ackPort 
 	map<Id, Id> ackMap;
 
 	// map of users ip:port and ip:heartbeat_port
