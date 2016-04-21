@@ -90,6 +90,10 @@ class Leader
 
 	// map of users ip and names in chat room
 	map<string, string> chatRoom;
+
+	// map of client heartbeats in chat room
+	map<string, std::chrono::time_point<std::chrono::system_clock>> clientBeat;
+
 	public:
 		Leader(string leaderName); 
 		void startServer();
@@ -102,6 +106,7 @@ class Leader
 		void consumerTask();
 		void parseMessage(char *message, string clientIp, int clientPort);
 		void sendListUsers(string clientIp, int clientPort);
+		void detectClientFaliure();
 };
 
 class Client

@@ -238,3 +238,18 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
 
 }
+
+void Leader::detectClientFaliure(){
+	while(true){
+		std::chrono::time_point<std::chrono::system_clock> curTime;
+		curTime = std::chrono::system_clock::now();
+		map<string, std::chrono::time_point<std::chrono::system_clock>>::iterator it;
+		for(it = clientBeat.begin(); it != clientBeat.end(); it++){
+			std::chrono::time_point<std::chrono::system_clock> beatTime = it->second;
+			std::chrono::duration<double> elapsed_seconds = beatTime - curTime;
+			if (elapsed_seconds * 1000 > HEARTBEAT_THRESHOLD * 2){
+				// TODO: detected client faliure, send delete request, update both server maps
+			} 
+		}
+	}
+}
