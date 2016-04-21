@@ -24,6 +24,8 @@
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
 #define CHAT 100
+// threshold for heart-beat
+#define HEARTBEAT_THRESHOLD 10
 
 using namespace std;
 
@@ -33,13 +35,15 @@ class Message
 	int type;
 	int sequenceNumber;
 	string buffer;
+	int msgId;
 
 	public:
-	Message(string message);
-	Message(int seqNum,string message);
+	
+	Message(int messageId,string message);
 	Message(int messageType,int seqNum,string message);
 	int getType();
 	int getSequenceNumber();
+	int getMessageId();
 	string getMessage();
 	void setMessage(string message);
         bool operator<(const Message &m1) const;
@@ -120,6 +124,8 @@ class Client
 	bool isLeader;
 	// client socket descriptor
         int clientFd;
+	// declare a message id which would be unique for every message sent by the client
+	int msgId;
         struct sockaddr_in leaderAddress, clientAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
