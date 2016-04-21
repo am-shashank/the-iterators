@@ -66,7 +66,7 @@ void Leader::printStartMessage() {
 	if(chatRoom.empty()) {
 		cout<<"Waiting for others to join..."<<endl;
 	}else{
-		map<string,string>::iterator it;
+		map<Id,string>::iterator it;
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
  		   	// iterator->first = key
     			// iterator->second = value
@@ -78,11 +78,8 @@ void Leader::printStartMessage() {
 /*   Parse the encoded message into a Message object
      and order using sequence number and add to Queue
 */
-void Leader::parseMessage(char *message, string clientIp, int clientPort) {
-	stringstream clientIdStream;
-	clientIdStream<<clientIp<<":"<<clientPort;
-	string clientId = clientIdStream.str();
-
+void Leader::parseMessage(char *message, Id clientId) {
+	
 	// spliting the encoded message
     	vector<string> messageSplit;
     	boost::split(messageSplit,message,boost::is_any_of("%"));
@@ -100,7 +97,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
     				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
 				string clientIp = ipPortSplit[0];
 				int clientPort = atoi(ipPortSplit[1].c_str());*/
-				sendListUsers(clientIp, clientPort); 
+				sendListUsers(clientId.ip, clientId.port); 
 			
 				// add NOTICE message to Queue	
 				stringstream response;	
@@ -122,7 +119,7 @@ void Leader::parseMessage(char *message, string clientIp, int clientPort) {
 				string user = chatRoom[clientId];
 				chatRoom.erase(clientId); 
 				#ifdef DEBUG
-				cout<<"Deleting "<<user<<endl;
+				cout<<"[DEBUG]Deleting "<<user<<endl;
 				#endif
 				// add NOTICE message to Queue	
 				stringstream response;	
@@ -161,7 +158,8 @@ void Leader::producerTask() {
         	cout<<"[DEBUG] Received from " <<clientIp<<":"<<ntohs(clientAdd.sin_port)<<" - "<<readBuffer<<endl;
 		#endif
 
-        	parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
+        	// parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
+		parseMessage(readBuffer, getId());
 	}
 }
 
@@ -189,7 +187,7 @@ void Leader::consumerTask() {
 		Message m = q.pop();
 			
 		// TODO: Multi-cast to everyone in the group 
-		map<string,string>::iterator it;
+		map<Id,string>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
 			stringstream msgStream;
 			msgStream << m.getType() << "%" << m.getMessage();
@@ -198,10 +196,8 @@ void Leader::consumerTask() {
                         cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second<<"@"<<it->first<<endl;
 			#endif
 			
-			vector<string> messageSplit;
-        		boost::split(messageSplit,it->first,boost::is_any_of(":"));
-			string clientIp = messageSplit[0];
-		        int clientPort = atoi(messageSplit[1].c_str());
+			string clientIp = it->first.ip;
+		        int clientPort = it->first.port;
  
 			/* set socket attributes for participant */
 			struct sockaddr_in clientAdd;
@@ -216,7 +212,7 @@ void Leader::consumerTask() {
 }
 
 void Leader::sendListUsers(string clientIp, int clientPort) {
-	map<string,string>::iterator it;
+	map<Id,string>::iterator it;
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << portNo << " (Leader) %";
 	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {

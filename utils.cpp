@@ -83,7 +83,71 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	
 }
 
-
-
+// receive message and send ACK
+int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* buffer, int ackFd, sockaddr_in ackAddr)
+{
+	int num_char = recvfrom(fd,buffer,500,0,(struct sockaddr *) addr,addrLen);
+	#ifdef DEBUG
+	cout<<"[DEBUG]Received: "<<buffer<<endl;
+	#endif
+ 	// send ACK
+	sendMessage(ackFd, to_string(ACK), ackAddr);
+	#ifdef DEBUG
+	cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
+	#endif
+	return num_char;
 	
+}
+
+
+/*
+        Send Message with retries
+        Parameters:
+                sendFd - socketFd where the msg needs to be sent to
+                recvFd - socketFd where the ACK needs to be received eg: FD for ACK
+                numReTry - number os retries remaining for sending the message
+*/
+int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, int numRetry) 
+{
+	if(numRetry == 0) 
+	{
+		if(IS_LEADER == 1){		
+			// TODO : declare node as dead
+	
+		}
+		else {
+			// TODO : call for election
+		}
+	}
+			
+	char writeBuffer[500];
+	bzero(writeBuffer,501);
+	socklen_t len = sizeof(addr);
+	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
+        int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+	
+	// wait for ACK with timeout
+	struct sockaddr_in clientAdd;
+	socklen_t clientLen = sizeof(clientAdd);
+	char readBuffer[500];
+	bzero(readBuffer, 501);
+	struct timeval timeout={ RETRY_TIMEOUT, 0}; //set timeout for 2 seconds
+	setsockopt(recvFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
+	int recvLen = recvfrom(recvFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+	// Message Receive Timeout or other error. Resend Message
+	if (recvLen < 0) {
+		#ifdef DEBUG
+		cout<<"[DEBUG] Sending "<<msg<<" failed";
+		#endif 
+		sendMessageWithRetry(sendFd, msg, sockaddr_in, recvFd, numRetry - 1);
+	}
+	return result;
+}
+
+
+Id getId(struct sockaddr_in addr) {
+	char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);	
+	return Id(string(ip), ntohs(addr.sin_port)); 
+}	
 

@@ -24,7 +24,9 @@
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
 #define CHAT 100
-
+#define NUM_RETRY 3 // Number of retries for message
+#define TIMEOUT_RETRY 5 // Timeout for retrying sending of messages ***in seconds***
+#define IS_LEADER 0 // 0 indicates - client, 1 - indicates Leader
 using namespace std;
 
 class Message
@@ -73,6 +75,25 @@ class ClientQueue
 	
 };
 
+
+class Id {
+       public:
+               string ip;
+               int port;
+               Id(string ip1, int port1) {
+                       ip = ip1;
+                       port = port1;
+               }
+
+               operator string() const { return ip + ":" + to_string(port); }
+               bool operator <(const Id &id2) const {
+                       if(ip == id2.ip)
+                               return port < id2.port;
+                       else
+                               return ip < id2.ip;
+               }
+};
+
 class Leader 
 {
 
@@ -89,7 +110,7 @@ class Leader
 	BlockingPQueue q;
 
 	// map of users ip and names in chat room
-	map<string, string> chatRoom;
+	map<Id, string> chatRoom;
 	public:
 		Leader(string leaderName); 
 		void startServer();
