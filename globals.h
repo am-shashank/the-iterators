@@ -99,7 +99,7 @@ class Leader
         	
 	// socket specific info
 	int socketFd;
-	struct sockaddr_in svrAdd;
+
 	socklen_t len; //store size of the address
 
 	int heartbeatPortNo;
@@ -112,15 +112,6 @@ class Leader
 
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
-
-	// map of users ip:port and ip:ackPort 
-	map<Id, Id> ackMap;
-
-	// map of users ip:port and ip:heartbeat_port
-	map<Id, Id> heartbeatMap; 
-
-	// map of client heartbeats in chat room
-	map<Id, chrono::time_point<chrono::system_clock>> clientBeat;
 
 	public:
 		Leader(string leaderName); 
@@ -150,13 +141,17 @@ class Leader
 class ChatRoomUser {
 	public:	
 		int port; // port for broadcast messages
+		struct sockaddr_in sock;
 		int ackPort; // port for Acknowledgements
+		struct sockaddr_in ackSock;
 		int heartbeatPort; // port for heart beats
+		struct sockaddr_in heartbeatSock;
 		string ip;
 		string name; // user name of the chatroom user
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
+		
 		 
-	ChatRoomUser(int port, int ackPort, int heartbeatPort, string ip, string name) {
+	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort) {
 		this.port = port;
 		this.ackPort = ackPort;
 		this.heartbeatPort = heartbeatPort;

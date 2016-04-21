@@ -94,7 +94,7 @@ int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* b
 	#ifdef DEBUG
 	cout<<"[DEBUG]Received: "<<buffer<<endl;
 	#endif
- 	// send ACK
+ 	// send ACK TODO: check if IP:port need to be added 
 	sendMessage(ackFd, to_string(ACK), ackAddr);
 	#ifdef DEBUG
 	cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
