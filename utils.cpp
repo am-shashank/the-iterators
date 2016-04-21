@@ -9,6 +9,10 @@
 #include<iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#define MIN_PORTNO 2000
+#define MAX_PORTNO 50000
+
 
 using namespace std;
 
@@ -83,7 +87,35 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	
 }
 
+// method to randomly generate a port number
 
+int generatePortNumber(int fd,sockaddr_in &addr)
+{
+	struct timeval t1;
+	int portNum;
+        gettimeofday(&t1, NULL);
+        srand(t1.tv_usec * t1.tv_sec);
+
+        while(true) {
+
+                int range = MAX_PORTNO - MIN_PORTNO + 1;
+                portNum = rand() % range + MIN_PORTNO;
+                #ifdef DEBUG
+                //cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
+                #endif
+                addr.sin_port = htons(portNum);
+                #ifdef DEBUG
+                //cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
+                #endif
+
+                if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+                        cerr << "Error: Cannot bind socket on " <<portNum<<endl;
+                }else
+                        break;
+
+        }
+	return portNum;
+}
 
 	
 

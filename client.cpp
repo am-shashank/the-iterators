@@ -26,6 +26,7 @@ Client :: Client(string name,string leaderIpPort)
 {
 	userName = name;
 	isLeader = false;
+	msgId=0;
        	vector<string> ipPortStr;
         boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
         leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -86,6 +87,8 @@ int Client :: establishConnection()
 	#endif
 
 	// randomly generated port of client
+	clientPort = generatePortNumber(clientFd,clientAddress);
+	/*
 	struct timeval t1;
         gettimeofday(&t1, NULL);
         srand(t1.tv_usec * t1.tv_sec);
@@ -108,7 +111,7 @@ int Client :: establishConnection()
                         break;
 
         }
-	
+	*/
 	#ifdef DEBUG
 	//cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
 	#endif
@@ -339,7 +342,8 @@ void Client :: sender()
 		// enque the message in the clientQueue
 		
 		// create an object of the message class
-		Message m(msg);
+		msgId = msgId+1;
+		Message m(msgId,msg);
 		q.push(m);		
 		
 	}
