@@ -87,7 +87,6 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	
 }
 
-<<<<<<< HEAD
 // receive message and send ACK
 int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* buffer, int ackFd, sockaddr_in ackAddr)
 {
@@ -103,35 +102,36 @@ int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* b
 	return num_char;
 	
 }
-=======
-// method to randomly generate a port number
 
+
+/*
+	Bind the specified socket to a random
+	port number that is available	
+*/
 int generatePortNumber(int fd,sockaddr_in &addr)
 {
 	struct timeval t1;
 	int portNum;
-        gettimeofday(&t1, NULL);
-        srand(t1.tv_usec * t1.tv_sec);
+    gettimeofday(&t1, NULL);
+    srand(t1.tv_usec * t1.tv_sec);
 
-        while(true) {
->>>>>>> 44424b1a40107d54d93048c407699ddc20291c43
+    while(true) {
 
-                int range = MAX_PORTNO - MIN_PORTNO + 1;
-                portNum = rand() % range + MIN_PORTNO;
-                #ifdef DEBUG
-                //cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
-                #endif
-                addr.sin_port = htons(portNum);
-                #ifdef DEBUG
-                //cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
-                #endif
+    	int range = MAX_PORTNO - MIN_PORTNO + 1;
+        portNum = rand() % range + MIN_PORTNO;
+        #ifdef DEBUG
+       	//cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
+        #endif
+        addr.sin_port = htons(portNum);
+        #ifdef DEBUG
+        //cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
+        #endif
 
-                if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-                        cerr << "Error: Cannot bind socket on " <<portNum<<endl;
-                }else
-                        break;
-
-        }
+        if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        	cerr << "Error: Cannot bind socket on " <<portNum<<endl;
+        }else
+        	break;
+    }
 	return portNum;
 }
 
@@ -159,7 +159,7 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, i
 	bzero(writeBuffer,501);
 	socklen_t len = sizeof(addr);
 	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
-        int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+	int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
 	
 	// wait for ACK with timeout
 	struct sockaddr_in clientAdd;
@@ -182,7 +182,7 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, i
 
 Id getId(struct sockaddr_in addr) {
 	char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);	
 	return Id(string(ip), ntohs(addr.sin_port)); 
 }	
 

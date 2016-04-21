@@ -21,12 +21,12 @@ Leader :: Leader(string leaderName) {
 */
 void Leader :: startServer(){
 	// create UDP socket
-    	socketFd = socket(AF_INET, SOCK_DGRAM, 0);
+    socketFd = socket(AF_INET, SOCK_DGRAM, 0);
 
-    	bzero((char*) &svrAdd, sizeof(svrAdd));
+    bzero((char*) &svrAdd, sizeof(svrAdd));
 
-    	svrAdd.sin_family = AF_INET;
-    	svrAdd.sin_addr.s_addr = INADDR_ANY;
+    svrAdd.sin_family = AF_INET;
+    svrAdd.sin_addr.s_addr = INADDR_ANY;
  	
 
    	/* bind to the UDP socket on the random port number
@@ -51,10 +51,10 @@ void Leader :: startServer(){
     	}
 	*/
 
-	// updated binding using util.cpp function
+	
 	portNo = generatePortNumber(socketFd, svrAdd);
 
-    	printStartMessage();
+    printStartMessage();
 	
 	// TODO: Start producer and consumer threads
 	thread prod(&Leader::producerTask, this, socketFd);
@@ -65,9 +65,9 @@ void Leader :: startServer(){
 
 	// create heartbeat socket
 	heartbeatFd = socket(AF_INET, SOCK_DGRAM, 0);
-        bzero((char*) &heartbeatAdd, sizeof(heartbeatAdd));
-        heartbeatAdd.sin_family = AF_INET;
-        heartbeatAdd.sin_addr.s_addr = INADDR_ANY;
+    bzero((char*) &heartbeatAdd, sizeof(heartbeatAdd));
+    heartbeatAdd.sin_family = AF_INET;
+    heartbeatAdd.sin_addr.s_addr = INADDR_ANY;
 
 	heartbeatPortNo = generatePortNumber(heartbeatFd, heartbeatAdd);
 
@@ -95,7 +95,7 @@ void Leader::printStartMessage() {
 		map<Id,string>::iterator it;
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
  		   	// iterator->first = key
-    			// iterator->second = value
+			// iterator->second = value
 			cout<<it->second<<" "<<it->first<<endl;
 		}	
 	}
@@ -107,8 +107,8 @@ void Leader::printStartMessage() {
 void Leader::parseMessage(char *message, Id clientId) {
 	
 	// spliting the encoded message
-    	vector<string> messageSplit;
-    	boost::split(messageSplit,message,boost::is_any_of("%"));
+	vector<string> messageSplit;
+	boost::split(messageSplit,message,boost::is_any_of("%"));
     
 	int messageType = atoi(messageSplit[0].c_str());
 	switch(messageType) {

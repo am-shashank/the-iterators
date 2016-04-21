@@ -1,3 +1,4 @@
 Maximum number of re-tries to generate unused port number: infinite until it gets an unused port
 Works mostly with IPv4 addresses
 Username and message cannot contain &, % and other special characters. We are using these as delimiters and using these may cause unexpected behaviour
+The list of maximum number of clients is limited by the JOIN message which sends the entire map. Because dividing the message and recombining it on the other end are very hard ensuring reliability.
