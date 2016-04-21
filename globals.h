@@ -88,6 +88,11 @@ class Leader
 	int socketFd;
 	struct sockaddr_in svrAdd;
 	socklen_t len; //store size of the address
+
+	int heartbeatPortNo;
+	// heartbeat socket info
+	int heartbeatFd;
+	struct sockaddr_in heartbeatAdd;
 		
 	int seqNum;   // global sequence number for ordering of messages
 	BlockingPQueue q;
@@ -95,8 +100,14 @@ class Leader
 	// map of users ip and names in chat room
 	map<string, string> chatRoom;
 
+	// map of users ip:port and ip:ack_port 
+	map<string, string> ackMap;
+
+	// map of users ip:port and ip:heartbeat_port
+	map<string, string> heartbeatMap; 
+
 	// map of client heartbeats in chat room
-	map<string, std::chrono::time_point<std::chrono::system_clock>> clientBeat;
+	map<string, chrono::time_point<chrono::system_clock>> clientBeat;
 
 	public:
 		Leader(string leaderName); 
@@ -104,12 +115,15 @@ class Leader
 		void printStartMessage();
 		
 		// Thread task to listen for messages in chatroom from participants
-		void producerTask();
+		void producerTask(int fd);
 		
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
 		void parseMessage(char *message, string clientIp, int clientPort);
 		void sendListUsers(string clientIp, int clientPort);
+		// to send recieve heartbeats, detect failures
+		void heartbeatSender();
+		// void heartbeatReciever();
 		void detectClientFaliure();
 };
 
