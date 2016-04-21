@@ -33,10 +33,11 @@ void Leader :: startServer(){
 	and retry with different random port if binding fails */
 	
 	// seed the random number generator with curent time    
+	/*
 	struct timeval t1;
 	gettimeofday(&t1, NULL);
 	srand(t1.tv_usec * t1.tv_sec);
-   	while(true) {
+	while(true) {
 
 		int range = MAX_PORTNO - MIN_PORTNO + 1;
 		portNo = rand() % range + MIN_PORTNO;
@@ -48,13 +49,38 @@ void Leader :: startServer(){
 			break;
 
     	}
+	*/
+
+	// updated binding using util.cpp function
+	portNo = generatePortNumber(socketFd, svrAdd);
+
     	printStartMessage();
 	
 	// TODO: Start producer and consumer threads
-	thread prod(&Leader::producerTask, this);
+	thread prod(&Leader::producerTask, this, socketFd);
 	thread con(&Leader::consumerTask, this);	
+
 	prod.join();
-	con.join();
+	con.join();	
+
+	// create heartbeat socket
+	heartbeatFd = socket(AF_INET, SOCK_DGRAM, 0);
+        bzero((char*) &heartbeatAdd, sizeof(heartbeatAdd));
+        heartbeatAdd.sin_family = AF_INET;
+        heartbeatAdd.sin_addr.s_addr = INADDR_ANY;
+
+	heartbeatPortNo = generatePortNumber(heartbeatFd, heartbeatAdd);
+
+	// TODO: Start heartbeat threads
+	thread heartbeatSend(&Leader::heartbeatSender, this);
+	// thread heartbeat_recv(&Leader::heartbeatReciever, this);
+	thread heartbeatRecv(&Leader::producerTask, this, heartbeatFd);
+	thread detectFailure(&Leader::detectClientFaliure, this);
+	
+	// join heartbeat messages 
+	heartbeatSend.join();
+	heartbeatRecv.join();
+	detectFailure.join();
 }
 
 /*  Print welcome message on start of UDP server
@@ -129,6 +155,15 @@ void Leader::parseMessage(char *message, Id clientId) {
 
 			}	
 			break;
+		case HEARTBEAT:
+			{
+				// Format: 3%clientIp:clientPort
+				string client = messageSplit[1];
+				chrono::time_point<chrono::system_clock> curTime;
+                		curTime = chrono::system_clock::now();
+				clientBeat[client] = curTime;
+			}
+			break;
 		default:
 			cout<<"Invalid chat code sent by participant"<<endl;
 
@@ -137,10 +172,12 @@ void Leader::parseMessage(char *message, Id clientId) {
 }
 
 /*  Producer thread constantly listening to 
-    messages and enqueues them
+    messages on the socket specified by fd
+    and parses the message to take appropriate 
+    action
 */
 
-void Leader::producerTask() {
+void Leader::producerTask(int fd) {
 	#ifdef DEBUG
 	cout<<"[DEBUG] Producer thread started"<<endl;
 	#endif
@@ -150,7 +187,7 @@ void Leader::producerTask() {
         	char readBuffer[500];
         	bzero(readBuffer, 501);
 		        
-        	recvfrom(socketFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+        	recvfrom(fd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
 		char clientIp[INET_ADDRSTRLEN];
 		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
 		
@@ -232,5 +269,35 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	cout<<"[DEBUG] Response length: "<< response.length()<<endl;
 	#endif
 	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
+}
 
+
+// to send recieve heartbeats, detect failures
+void Leader::heartbeatSender(){
+	while(true){	
+		
+		// thread sleep
+		this_thread::sleep_for(std::chrono::milliseconds(HEARTBEAT_THRESHOLD));		
+	}
+}
+
+
+void Leader::detectClientFaliure(){
+	while(true){
+		chrono::time_point<chrono::system_clock> curTime;
+		curTime = chrono::system_clock::now();
+		map<string, chrono::time_point<chrono::system_clock>>::iterator it;
+		for(it = clientBeat.begin(); it != clientBeat.end(); it++){
+			chrono::time_point<chrono::system_clock> beatTime = it->second;
+			chrono::duration<double> elapsedSeconds = beatTime - curTime;
+
+			// edit HEARTBEAT_THRESHOLD to required type
+			chrono::duration<double> thresholdSeconds =  chrono::duration<double>(HEARTBEAT_THRESHOLD * 0.002);
+			if (elapsedSeconds > thresholdSeconds){
+				// TODO: detected client faliure, send delete request, update both server maps
+			} 
+		}
+		// thread sleep
+		this_thread::sleep_for(std::chrono::milliseconds(HEARTBEAT_THRESHOLD));
+	}
 }

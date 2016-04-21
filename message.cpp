@@ -8,20 +8,19 @@ Message :: Message(int messageType,int seqNum,string message)
 	sequenceNumber = seqNum;
 	buffer = message;
 }
-Message :: Message(int seqNum,string message)
+Message :: Message(int messageId,string message)
 {
-	sequenceNumber = seqNum;
-	buffer = message;
-}
-Message :: Message(string message)
-{
+	msgId = messageId;
 	buffer = message;
 }
 int Message :: getType()
 {
 	return type;
 }
-
+int Message :: getMessageId()
+{
+	return msgId;
+}
 int Message :: getSequenceNumber()
 {
 	return sequenceNumber;

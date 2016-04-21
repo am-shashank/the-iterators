@@ -27,6 +27,8 @@
 #define NUM_RETRY 3 // Number of retries for message
 #define TIMEOUT_RETRY 5 // Timeout for retrying sending of messages ***in seconds***
 #define IS_LEADER 0 // 0 indicates - client, 1 - indicates Leader
+#define HEARTBEAT_THRESHOLD 10 // threshold for heart-beat
+
 using namespace std;
 
 class Message
@@ -35,13 +37,15 @@ class Message
 	int type;
 	int sequenceNumber;
 	string buffer;
+	int msgId;
 
 	public:
-	Message(string message);
-	Message(int seqNum,string message);
+	
+	Message(int messageId,string message);
 	Message(int messageType,int seqNum,string message);
 	int getType();
 	int getSequenceNumber();
+	int getMessageId();
 	string getMessage();
 	void setMessage(string message);
         bool operator<(const Message &m1) const;
@@ -105,24 +109,43 @@ class Leader
 	int socketFd;
 	struct sockaddr_in svrAdd;
 	socklen_t len; //store size of the address
+
+	int heartbeatPortNo;
+	// heartbeat socket info
+	int heartbeatFd;
+	struct sockaddr_in heartbeatAdd;
 		
 	int seqNum;   // global sequence number for ordering of messages
 	BlockingPQueue q;
 
 	// map of users ip and names in chat room
 	map<Id, string> chatRoom;
+
+	// map of users ip:port and ip:ack_port 
+	map<Id, Id> ackMap;
+
+	// map of users ip:port and ip:heartbeat_port
+	map<Id, Id> heartbeatMap; 
+
+	// map of client heartbeats in chat room
+	map<Id, chrono::time_point<chrono::system_clock>> clientBeat;
+
 	public:
 		Leader(string leaderName); 
 		void startServer();
 		void printStartMessage();
 		
 		// Thread task to listen for messages in chatroom from participants
-		void producerTask();
+		void producerTask(int fd);
 		
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
 		void parseMessage(char *message, string clientIp, int clientPort);
 		void sendListUsers(string clientIp, int clientPort);
+		// to send recieve heartbeats, detect failures
+		void heartbeatSender();
+		// void heartbeatReciever();
+		void detectClientFaliure();
 };
 
 class Client
@@ -136,6 +159,8 @@ class Client
 	bool isLeader;
 	// client socket descriptor
         int clientFd;
+	// declare a message id which would be unique for every message sent by the client
+	int msgId;
         struct sockaddr_in leaderAddress, clientAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
