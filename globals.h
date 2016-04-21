@@ -90,23 +90,8 @@ class Id {
 		bool operator <(const Id &id2) const;
 };
 
-class Leader 
+class Leader : public ChatRoomUser
 {
-
-	string name;
-	string ip; 
-	int portNo;
-        	
-	// socket specific info
-	int socketFd;
-
-	socklen_t len; //store size of the address
-
-	int heartbeatPortNo;
-	// heartbeat socket info
-	int heartbeatFd;
-	struct sockaddr_in heartbeatAdd;
-		
 	int seqNum;   // global sequence number for ordering of messages
 	BlockingPQueue q;  // Blocking Priority Queue to maintain incoming messages to be broadcasted
 
@@ -151,14 +136,9 @@ class ChatRoomUser {
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
 		
 		 
-	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort) {
-		this.port = port;
-		this.ackPort = ackPort;
-		this.heartbeatPort = heartbeatPort;
-		this.ip = ip;
-		this.name = name;
-		this.lastHbt = chrono::system_clock::now();
-	}
+	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
+	ChatRoomUser();
+	void setupSockets();
 };
 
 
