@@ -13,6 +13,7 @@
 #include <sstream>
 #include <thread>
 #include <poll.h>
+#include <unistd.h>
 #include "utils.h"
 #include "globals.h"
 #include <sys/time.h>
@@ -34,17 +35,37 @@ Client :: Client(string name,string leaderIpPort)
 	establishConnection();
 }
 /*
-function is used to set the attributes for the server
+function is used to set the attributes for the leader
 */
 void Client :: setLeaderAttributes(char* ip, int port)
 {
 	leaderIp = ip;
-	leaderPort = port;
+	leaderPort = port; 
+	// setup for sending CHAT/JOIN/DELETE messages to leader
 	bzero((char *) &leaderAddress, sizeof(leaderAddress));
         leaderAddress.sin_family = AF_INET;
         inet_pton(AF_INET,leaderIp,&(leaderAddress.sin_addr));
         leaderAddress.sin_port = htons(leaderPort);
-		
+}
+void Client:: setupLeaderPorts(int lAckPort, int heartbeatPort)
+{
+	leaderAckPort = lAckPort;
+        leaderHeartBeatPort = heartbeatPort;
+	
+	
+        // setup for sending acknowledgements to leader
+        bzero((char *) &leaderAckAddress, sizeof(leaderAckAddress));
+        leaderAckAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,leaderIp,&(leaderAckAddress.sin_addr));
+        leaderAckAddress.sin_port = htons(leaderAckPort);
+
+        // setup for sending heartbeat to leader
+        bzero((char *) &leaderHeartBeatAddress, sizeof(leaderHeartBeatAddress));
+        leaderHeartBeatAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,leaderIp,&(leaderHeartBeatAddress.sin_addr));
+        leaderHeartBeatAddress.sin_port = htons(leaderHeartBeatPort);
+
+
 }
 int Client :: establishConnection()
 {
@@ -133,6 +154,11 @@ int Client :: establishConnection()
 	//since bind was successful print the message on client's screen
 	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
 
+	// setup other client ports for sending heartbeat and receiving acknowledgements
+	
+	setupClientPorts();
+
+	//send join request
 	int success = joinNetwork(clientPort,clientIp);
 	if(success)
 	{
@@ -142,10 +168,14 @@ int Client :: establishConnection()
 		cout<<"[DEBUG]starting client threads"<<endl;
 		#endif
 
+		thread heartBeatPing(&Client::sendHeartbeat,this);
+		//thread detectFailure(&Client::detectLeaderFailure,this);
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
         	sendMsg.join();
         	receiveMsg.join();
+		//detectFailure.join();
+		heartBeatPing.join();
  
 	}
 	else
@@ -167,7 +197,7 @@ int Client :: joinNetwork(int portNo,string ip)
 
 	std::stringstream joinMsg;
 
-	joinMsg<< JOIN<<"%" << userName <<"%" <<ip<<":"<<portNo;
+	joinMsg<< JOIN<<"%" << userName <<"%" <<ip<<":"<<portNo<<"%"<<ackPort<<"%"<<heartBeatPort;
 	string msg = joinMsg.str();
 
 	int sendResult = sendMessage(clientFd,msg,leaderAddress);
@@ -270,6 +300,10 @@ int Client :: joinNetwork(int portNo,string ip)
 					if(flag != 0)
 					{
 						chatRoom[listUsers[1]] = listUsers[0];
+					}
+					else
+					{
+						setupLeaderPorts(atoi(listUsers[2].c_str()),atoi(listUsers[3].c_str()));		
 					}
 					flag++;
 					cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl;
@@ -466,8 +500,59 @@ void Client :: exitChatroom()
 		cout<<"[DEBUG]delete request could not be sent\t"<<endl;
 		#endif
 	}
-	// TODO: close socket, termine thread	
+	// TODO: close socket, terminate thread	
 	close(clientFd);
 	exit(0);
+}
+// setup heartbeat socket
+void Client :: setupClientPorts()
+{
+	heartBeatFd = socket(AF_INET,SOCK_DGRAM,0);
+		
+	if(heartBeatFd < 0)
+	{
+		#ifdef DEBUG
+		cout<<"socket creation for heart beat failed"<<endl;
+		#endif
+	}
 
+	bzero((char *) &heartBeatAddress, sizeof(heartBeatAddress));
+        heartBeatAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,clientIp.c_str(),&(heartBeatAddress.sin_addr));
+
+        // randomly generated port of client for heartbeat
+        heartBeatPort = generatePortNumber(heartBeatFd,heartBeatAddress);
+	
+	// setting port for receiving acknowledgements
+	ackFd = socket(AF_INET,SOCK_DGRAM,0);
+	if(ackFd < 0)
+	{
+		#ifdef DEBUG
+		cout<<"socket creation for acknowledgements failed\t"<<endl;
+		#endif		
+	}
+	bzero((char *) &ackAddress, sizeof(ackAddress));
+        ackAddress.sin_family = AF_INET;
+        inet_pton(AF_INET,clientIp.c_str(),&(ackAddress.sin_addr));
+        // randomly generated port of client for acknowledgements
+        ackPort = generatePortNumber(ackFd,ackAddress);
+	 	
+}
+void Client :: sendHeartbeat()
+{
+	//the function should periodically send a heartbeat ping to the leader
+	stringstream tempStr;
+        tempStr<<HEARTBEAT<<"%"<<clientIp<<":"<<clientPort;
+        string finalMsg = tempStr.str();
+	while(true)
+	{
+        	int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
+		if(sendResult == -1)
+		{
+			#ifdef DEBUG
+			cout<<"failed to send heartbeat to the leader"<<endl;
+			#endif
+		}
+		sleep(HEARTBEAT_THRESHOLD);		
+	}
 }

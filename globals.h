@@ -24,7 +24,7 @@
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
 #define CHAT 100
-// threshold for heart-beat
+// threshold for heart-beat in milliseconds
 #define HEARTBEAT_THRESHOLD 10
 
 using namespace std;
@@ -114,14 +114,21 @@ class Client
         string userName;
         char* leaderIp;
         int leaderPort;
+	int leaderAckPort;
+	int leaderHeartBeatPort;
 	int clientPort;
+	int heartBeatPort;
+	int ackPort;
 	string clientIp;
 	bool isLeader;
 	// client socket descriptor
         int clientFd;
+	// client socket descriptor for heart beat and acknowledgements
+	int heartBeatFd;
+	int ackFd;
 	// declare a message id which would be unique for every message sent by the client
 	int msgId;
-        struct sockaddr_in leaderAddress, clientAddress;
+        struct sockaddr_in leaderAddress,leaderAckAddress,leaderHeartBeatAddress,clientAddress, heartBeatAddress, ackAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
 
@@ -134,10 +141,14 @@ class Client
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
+	void setupClientPorts();
+	void setupLeaderPorts(int lAckPort,int ackPort);
 	void setLeaderAttributes(char* ip, int port);
         int joinNetwork(int portNo,string localIp);
 	void sender();
 	void receiver();
+	void sendHeartbeat();
+	void detectLeaderFailure();
 	void exitChatroom();	
 };
 
