@@ -87,20 +87,46 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen,char* buffer)
 	
 }
 
-// receive message and send ACK
-int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* buffer, int ackFd, sockaddr_in ackAddr)
+/*
+	Receive a message and acknowledge it
+        Parameters:
+		sockFd : socket fd where the user is listening for messages
+		ackFd : socket where chatroomuser is sending ACK
+		chatRoom : map of ip:port and other chatRooms	
+                buffer: buffer where the resulting message is put
+	Return:
+		Id of the chatroomuser who sent the message 
+*/
+Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, char* buffer)
 {
-	int num_char = recvfrom(fd,buffer,500,0,(struct sockaddr *) addr,addrLen);
-	#ifdef DEBUG
-	cout<<"[DEBUG]Received: "<<buffer<<endl;
-	#endif
- 	// send ACK TODO: check if IP:port need to be added 
-	sendMessage(ackFd, to_string(ACK), ackAddr);
-	#ifdef DEBUG
-	cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
-	#endif
-	return num_char;
-	
+        struct sockaddr_in clientAdd;
+        bzero((char *) &clientAdd, sizeof(clientAdd));
+        socklen_t clientLen = sizeof(clientAdd);
+        int num_char = recvfrom(sockFd, buffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+
+        // spliting the encoded message
+        vector<string> messageSplit;
+        boost::split(messageSplit,message,boost::is_any_of("%"));
+        int msgId = to_integer(messageSplit[1]);
+
+        Id clientId = getId(addr);
+        int ackPort = chatRoom[clientId].ackPort;
+        #ifdef DEBUG
+        cout<<"[DEBUG]Received: "<<buffer<<endl;
+        #endif
+        // send ACK to clientAckPort with Message Id
+        /* set socket attributes for participant's ACK port */
+        struct sockaddr_in clientAckAdd;
+        bzero((char *) &clientAckAdd, sizeof(clientAckAdd));
+        clientAckAdd.sin_family = AF_INET;
+        inet_pton(AF_INET,clientId.ip.c_str(),&(clientAckAdd.sin_addr));
+        clientAckAdd.sin_port = htons(ackPort);
+
+        sendMessage(ackFd, to_string(ACK) + "%" + to_string(msgId), clientAckAdd);
+        #ifdef DEBUG
+        cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
+        #endif
+        return clientId;
 }
 
 
@@ -110,8 +136,8 @@ int receiveMessageWithAck(int fd, sockaddr_in *addr, socklen_t *addrLen, char* b
 */
 int generatePortNumber(int fd,sockaddr_in &addr)
 {
-	struct timeval t1;
-	int portNum;
+    struct timeval t1;
+    int portNum;
     gettimeofday(&t1, NULL);
     srand(t1.tv_usec * t1.tv_sec);
 
@@ -136,24 +162,20 @@ int generatePortNumber(int fd,sockaddr_in &addr)
 }
 
 /*
-        Send Message with retries
+        Send Message with retries ensuring reliable delivery
         Parameters:
-                sendFd - socketFd where the msg needs to be sent to
-                recvFd - socketFd where the ACK needs to be received eg: FD for ACK
+                sendFd - socketFd of the sender
+		msg - Message to be sent
+		addr - socket of the recepient
+                ackFd - socketFd where the ACK needs to be received
                 numReTry - number os retries remaining for sending the message
+	Return:
+		number of bytes sent / NODE_DEAD if the node is dead
 */
-int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, int numRetry) 
+int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry) 
 {
 	if(numRetry == 0) 
-	{
-		if(IS_LEADER == 1){		
-			// TODO : declare node as dead
-	
-		}
-		else {
-			// TODO : call for election
-		}
-	}
+		return NODE_DEAD;
 			
 	char writeBuffer[500];
 	bzero(writeBuffer,501);
@@ -168,9 +190,9 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, i
 	bzero(readBuffer, 501);
 	struct timeval timeout={ TIMEOUT_RETRY, 0}; //set timeout for 2 seconds
 	setsockopt(recvFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
-	int recvLen = recvfrom(recvFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+	int recvLen = recvfrom(ackFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
 	// Message Receive Timeout or other error. Resend Message
-	if (recvLen < 0) {
+	if (recvLen <= 0) {
 		#ifdef DEBUG
 		cout<<"[DEBUG] Sending "<<msg<<" failed";
 		#endif 
