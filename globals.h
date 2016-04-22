@@ -48,7 +48,7 @@ class Message
 	int getMessageId();
 	string getMessage();
 	void setMessage(string message);
-        bool operator<(const Message &m1) const;
+    bool operator<(const Message &m1) const;
 	
 	~Message(); 
 };
@@ -94,7 +94,10 @@ class Leader : public ChatRoomUser
 {
 	int seqNum;   // global sequence number for ordering of messages
 	BlockingPQueue q;  // Blocking Priority Queue to maintain incoming messages to be broadcasted
-
+	
+	int sockFd, heartbeatSockFd, ackSockFd;
+	struct sockaddr_in sock, heartbeatSock, ackSock;
+	
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
 
@@ -102,10 +105,8 @@ class Leader : public ChatRoomUser
 		Leader(string leaderName); 
 		void startServer();
 		void printStartMessage();
-		
 		// Thread task to listen for messages in chatroom from participants
 		void producerTask(int fd);
-		
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
 		// parse the incoming message and take appropriate actions
@@ -126,19 +127,12 @@ class Leader : public ChatRoomUser
 class ChatRoomUser {
 	public:	
 		int port; // port for broadcast messages
-		struct sockaddr_in sock;
 		int ackPort; // port for Acknowledgements
-		struct sockaddr_in ackSock;
 		int heartbeatPort; // port for heart beats
-		struct sockaddr_in heartbeatSock;
 		string ip;
 		string name; // user name of the chatroom user
-		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
-		
-		 
+		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received	
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
-	ChatRoomUser();
-	void setupSockets();
 };
 
 
