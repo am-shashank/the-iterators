@@ -21,74 +21,50 @@ Leader :: Leader(string leaderName) {
 */
 void Leader :: startServer(){
 	// create UDP socket
-    socketFd = socket(AF_INET, SOCK_DGRAM, 0);
-
-    bzero((char*) &svrAdd, sizeof(svrAdd));
-
-    svrAdd.sin_family = AF_INET;
-    svrAdd.sin_addr.s_addr = INADDR_ANY;
- 	
-
-   	/* bind to the UDP socket on the random port number
-	and retry with different random port if binding fails */
-	
-	// seed the random number generator with curent time    
-	/*
-	struct timeval t1;
-	gettimeofday(&t1, NULL);
-	srand(t1.tv_usec * t1.tv_sec);
-	while(true) {
-
-		int range = MAX_PORTNO - MIN_PORTNO + 1;
-		portNo = rand() % range + MIN_PORTNO;
-		svrAdd.sin_port = htons(portNo);
-	
-		if(bind(socketFd, (struct sockaddr *)&svrAdd, sizeof(svrAdd)) < 0) {
-		        cerr << "Error: Cannot bind socket on " <<portNo<<endl;
-    		}else
-			break;
-
-    	}
-	*/
-
-	
-	portNo = generatePortNumber(socketFd, svrAdd);
+    sockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    bzero((char*) &sock, sizeof(sock));
+    sock.sin_family = AF_INET;
+    sock.sin_addr.s_addr = INADDR_ANY;
+	port = generatePortNumber(sockFd, sock); */
 
     printStartMessage();
 	
-	// TODO: Start producer and consumer threads
-	thread prod(&Leader::producerTask, this, socketFd);
+	// Start producer and consumer threads
+	thread prod(&Leader::producerTask, this, sockFd);
 	thread con(&Leader::consumerTask, this);	
-
 	prod.join();
 	con.join();	
 
 	// create heartbeat socket
-	heartbeatFd = socket(AF_INET, SOCK_DGRAM, 0);
-    bzero((char*) &heartbeatAdd, sizeof(heartbeatAdd));
-    heartbeatAdd.sin_family = AF_INET;
-    heartbeatAdd.sin_addr.s_addr = INADDR_ANY;
-
-	heartbeatPortNo = generatePortNumber(heartbeatFd, heartbeatAdd);
-
-	// TODO: Start heartbeat threads
+	heartbeatSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    bzero((char*) &heartbeatSock, sizeof(heartbeatSock));
+    heartbeatSock.sin_family = AF_INET;
+    heartbeatSock.sin_addr.s_addr = INADDR_ANY;
+	heartbeatPortNo = generatePortNumber(heartbeatSockFd, heartbeatSock);
+	// Start heartbeat threads
 	thread heartbeatSend(&Leader::heartbeatSender, this);
-	// thread heartbeat_recv(&Leader::heartbeatReciever, this);
-	thread heartbeatRecv(&Leader::producerTask, this, heartbeatFd);
+	thread heartbeatRecv(&Leader::producerTask, this, heartbeatSockFd);
 	thread detectFailure(&Leader::detectClientFaliure, this);
-	
-	// join heartbeat messages 
 	heartbeatSend.join();
 	heartbeatRecv.join();
 	detectFailure.join();
+	
+	// create ACK socket
+	ackSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    bzero((char*) &ackSock, sizeof(ackSock));
+    ackSock.sin_family = AF_INET;
+    ackSock.sin_addr.s_addr = INADDR_ANY;
+	ackPort = generatePortNumber(ackSockFd, ackSock);
+	
+
 }
 
 /*  Print welcome message on start of UDP server
 */
 void Leader::printStartMessage() {
-	cout<<name<<" started a new chat, listening on "<<ip<<":"<<portNo<<endl;
+	cout<<name<<" started a new chat, listening on "<<ip<<":"<<port<<endl;
 	cout<<"Succeeded, current users:"<<endl;
-	cout<<name<<" "<<ip<<":"<<portNo<<"(Leader)"<<endl;
+	cout<<name<<" "<<ip<<":"<<port<<"(Leader)"<<endl;
 	if(chatRoom.empty()) {
 		cout<<"Waiting for others to join..."<<endl;
 	}else{
@@ -188,10 +164,10 @@ void Leader::producerTask(int fd) {
 	while (true) {
 		struct sockaddr_in clientAdd;
 		socklen_t clientLen = sizeof(clientAdd);
-        	char readBuffer[500];
-        	bzero(readBuffer, 501);
+       	char readBuffer[500];
+        bzero(readBuffer, 501);
 		        
-        	recvfrom(fd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+        recvfrom(fd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
 		char clientIp[INET_ADDRSTRLEN];
 		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
 		
@@ -213,18 +189,6 @@ void Leader::consumerTask() {
 	#endif	
 	while(true) {
 		// TODO: wait for ACKs from everyone
-	
-		/* struct sockaddr_in clientAdd;
-		socklen_t clientLen = sizeof(clientAdd);
-        	char readBuffer[500];
-        	bzero(readBuffer, 501);
-	
-		recvfrom(socketFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
-		#ifdef DEBUG
-        	cout<<"[DEBUG] Received from Client:" << readBuffer<<endl;
-		#endif
-		*/ 
-		
 		Message m = q.pop();
 			
 		// Multi-cast to everyone in the group 
@@ -236,7 +200,7 @@ void Leader::consumerTask() {
 			#ifdef DEBUG
 				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second->name<<"@"<<it->first<<endl;
 			#endif
-			
+			cout<<msg<<endl;
 			string clientIp = it->first.ip;
 			int clientPort = it->first.port;
  
@@ -247,7 +211,7 @@ void Leader::consumerTask() {
 			inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
 			clientAdd.sin_port = htons(clientPort);
 			
-			sendto(socketFd, msg.c_str(),msg.length(),0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
+			sendMessageWithRetry(sockFd, msg.c_str(),msg.length(),0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
 		}		
 	}	
 }
@@ -255,7 +219,7 @@ void Leader::consumerTask() {
 void Leader::sendListUsers(string clientIp, int clientPort) {
 	map<Id, ChatRoomUser>::iterator it;
 	stringstream ss;
-	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << portNo << " (Leader) %";
+	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << port <<" (Leader)"<< "&" << ackPort << "&" << heartbeatPort << "%";
 	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
 		ss << it->second->name << "&" << it->first << "%";		
 	}
@@ -272,13 +236,14 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	cout<<"[DEBUG]Sending List of users to "<<clientIp<<":"<<clientPort<<" "<<response<<endl;
 	cout<<"[DEBUG] Response length: "<< response.length()<<endl;
 	#endif
-	sendto(socketFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
+	sendto(sockFd, response.c_str(), response.length(), 0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
 }
 
 
 // to send recieve heartbeats, detect failures
 void Leader::heartbeatSender(){
-	while(true){		
+	while(true){	
+			
 		// thread sleep
 		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));		
 	}

@@ -28,12 +28,13 @@ Client :: Client(string name,string leaderIpPort)
 	userName = name;
 	isLeader = false;
 	msgId=0;
-       	vector<string> ipPortStr;
-        boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
-        leaderIp = const_cast<char*>(ipPortStr[0].c_str());
-        leaderPort = atoi(ipPortStr[1].c_str());
+	vector<string> ipPortStr;
+	boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
+	leaderIp = const_cast<char*>(ipPortStr[0].c_str());
+	leaderPort = atoi(ipPortStr[1].c_str());
 	establishConnection();
 }
+
 /*
 function is used to set the attributes for the leader
 */
