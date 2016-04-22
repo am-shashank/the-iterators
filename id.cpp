@@ -11,9 +11,10 @@ Id::Id(string ip1, int port1) {
         port = port1;
 }
 
-Id::operator string() const { 
+/* Id::operator string() const { 
 	return ip + ":" + to_string(port); 
 }
+*/
                
 bool Id:: operator <(const Id &id2) const {
 	if(ip == id2.ip) 

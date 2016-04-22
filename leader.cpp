@@ -25,7 +25,7 @@ void Leader :: startServer(){
     bzero((char*) &sock, sizeof(sock));
     sock.sin_family = AF_INET;
     sock.sin_addr.s_addr = INADDR_ANY;
-	port = generatePortNumber(sockFd, sock); */
+	port = generatePortNumber(sockFd, sock); 
 
     printStartMessage();
 	
@@ -40,7 +40,7 @@ void Leader :: startServer(){
     bzero((char*) &heartbeatSock, sizeof(heartbeatSock));
     heartbeatSock.sin_family = AF_INET;
     heartbeatSock.sin_addr.s_addr = INADDR_ANY;
-	heartbeatPortNo = generatePortNumber(heartbeatSockFd, heartbeatSock);
+    heartbeatPort = generatePortNumber(heartbeatSockFd, heartbeatSock);
 	// Start heartbeat threads
 	thread heartbeatSend(&Leader::heartbeatSender, this);
 	thread heartbeatRecv(&Leader::producerTask, this, heartbeatSockFd);
@@ -72,7 +72,7 @@ void Leader::printStartMessage() {
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
  		   	// iterator->first = key
 			// iterator->second = value
-			cout<<it->second->name<<" "<<it->first<<endl;
+			cout<<it->second.name<<" "<<it->first<<endl;
 		}	
 	}
 }
@@ -134,7 +134,7 @@ void Leader::parseMessage(char *message, Id clientId) {
 	   	
 }
 
-void deleteUser(Id clientId) {
+void Leader:: deleteUser(Id clientId) {
 	// Delete user from map, ackMap, heartBeatMap
 	string user = chatRoom[clientId].name;
 	chatRoom.erase(clientId);
@@ -176,7 +176,7 @@ void Leader::producerTask(int fd) {
 		#endif
 
         	// parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
-		parseMessage(readBuffer, getId());
+		parseMessage(readBuffer, getId(clientAdd));
 	}
 }
 
@@ -198,7 +198,7 @@ void Leader::consumerTask() {
 			msgStream << m.getType() << "%" << m.getMessage();
 			string msg = msgStream.str();
 			#ifdef DEBUG
-				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second->name<<"@"<<it->first<<endl;
+				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second.name<<"@"<<it->first<<endl;
 			#endif
 			cout<<msg<<endl;
 			string clientIp = it->first.ip;
@@ -211,7 +211,7 @@ void Leader::consumerTask() {
 			inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
 			clientAdd.sin_port = htons(clientPort);
 			
-			sendMessageWithRetry(sockFd, msg.c_str(),msg.length(),0, (struct sockaddr *) &clientAdd, sizeof(clientAdd));
+			sendMessageWithRetry(sockFd, msg.c_str(), clientAdd, ackSockFd, NUM_RETRY);
 		}		
 	}	
 }
@@ -221,7 +221,7 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << port <<" (Leader)"<< "&" << ackPort << "&" << heartbeatPort << "%";
 	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
-		ss << it->second->name << "&" << it->first << "%";		
+		ss << it->second.name << "&" << it->first << "%";		
 	}
 	
 	/* set socket attributes for participant */
@@ -255,8 +255,8 @@ void Leader::detectClientFaliure(){
 		chrono::time_point<chrono::system_clock> curTime;
 		curTime = chrono::system_clock::now();
 		map<Id, ChatRoomUser>::iterator it;
-		for(it = clientBeat.begin(); it != clientBeat.end(); it++){
-			chrono::time_point<chrono::system_clock> beatTime = it->second->lastHbt;
+		for(it = chatRoom.begin(); it != chatRoom.end(); it++){
+			chrono::time_point<chrono::system_clock> beatTime = it->second.lastHbt;
 			chrono::duration<double> elapsedSeconds = beatTime - curTime;
 
 			// edit HEARTBEAT_THRESHOLD to required metric

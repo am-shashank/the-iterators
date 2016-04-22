@@ -34,7 +34,6 @@
 
 
 using namespace std;
-
 class Message
 {
 	private:
@@ -90,9 +89,14 @@ class Id {
 		int port;
 		Id(string ip1, int port1); 
 		Id(string IpPort);
-		operator string() const ;
 		bool operator <(const Id &id2) const;
+		friend ostream& operator<<(ostream& o, const Id &obj) {  
+        		o<<obj.ip<<":"<<obj.port;
+			return o;
+		}	
+
 };
+Id getId(struct sockaddr_in clientAdd);
 
 
 /*
@@ -131,7 +135,7 @@ class Leader : public ChatRoomUser
 		// Thread task to multi-cast messages to participants in chatroom
 		void consumerTask();
 		// parse the incoming message and take appropriate actions
-		void parseMessage(char *message, string clientIp, int clientPort);
+		void parseMessage(char *message, Id clientId);
 		// Sending the list of current users in chatroom to the client specified
 		void sendListUsers(string clientIp, int clientPort);
 		// to send recieve heartbeats, detect failures
@@ -218,4 +222,3 @@ class Client
 		*/	
 };
 
-Id getId(struct sockaddr_in);
