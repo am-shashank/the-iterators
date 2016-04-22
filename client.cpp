@@ -173,8 +173,10 @@ int Client :: establishConnection()
 		thread detectFailure(&Client::detectLeaderFailure,this);
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
+		//thread processMsg(&Client:: processReceivedMessage,this);
         	sendMsg.join();
         	receiveMsg.join();
+		//processMsg.join();
 		detectFailure.join();
 		heartBeatPing.join();
  
@@ -362,9 +364,17 @@ void Client :: sender()
 		// send the message to the leader
 		string msg = string(msgBuffer);
 		stringstream tempStr;
-		tempStr<<CHAT<<"%"<<msg;
+		msgId = msgId+1;
+		tempStr<<CHAT<<"%"<<msg<<"%"<<msgId;
 		string finalMsg = tempStr.str();
-		int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+		//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+	
+		// create an object of the message class and enque the message
+               
+                Message m(msgId,msg);
+                q.push(m);
+
+		int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
 		#ifdef DEBUG
 		//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
 		#endif
@@ -374,12 +384,12 @@ void Client :: sender()
                 	cout<<"[DEBUG]message could not be sent to the leader"<<endl;
                 	#endif
         	}
-		// enque the message in the clientQueue
+		else if(sendResult == NODE_DEAD)
+		{
+			//leader died and hence perform elections
+			//TODO: perform elections
+		}
 		
-		// create an object of the message class
-		msgId = msgId+1;
-		Message m(msgId,msg);
-		q.push(m);		
 		
 	}
 }
@@ -403,7 +413,7 @@ void Client :: receiver()
 		#ifdef DEBUG
 		//cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
 		#endif
-		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
+		int numChar = recvfrom(clientFd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *)&clientTemp,&clientTempLen);
 		if(numChar<0)
 		{
 			#ifdef DEBUG
@@ -425,10 +435,33 @@ void Client :: receiver()
 			int code = atoi(msgSplit[0].c_str());
 			if(code == CHAT)
 			{
+				/*
 				for(;ite!= msgSplit.end();ite++)
 				{
 					cout<<*ite<<"\t";
 				}	
+				*/
+				lastSeenMsg = msgSplit[1];
+				string ipPort = msgSplit[2];
+				int mid = atoi(msgSplit[3].c_str());
+				int currentSequenceNum = atoi(msgSplit[4].c_str());
+				
+				// send acknowledgement to server
+				stringstream msg;
+				msg<<ACK;
+				string ackMsg = msg.str();	
+				int sendResult = sendMessage(ackFd,ackMsg,leaderAckAddress);
+				if(sendResult < 0)
+				{
+					#ifdef DEBUG
+					cout<<"[DEBUG]acknowledgement for broadcast message not sent"<<endl;
+					#endif
+				}
+				if(currentSequenceNum >  lastSeenSequenceNum)
+				{
+					lastSeenSequenceNum = currentSequenceNum;
+					cout<<lastSeenMsg<<endl;		
+				}
 			}
 			else if(code == JOIN)
 			{
@@ -440,20 +473,6 @@ void Client :: receiver()
 					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
 					string msg = resolveMsg.str();
 					//send the leaderIp & leaderPort to client
-
-					/*
-					vector<string> ipPort;
-					boost::split(ipPort,msgSplit[1],boost::is_any_of(":"));
-					char *ip = const_cast<char*>(ipPort[0].c_str());
-                        		int portNum = atoi(ipPort[1].c_str());
-						
-					struct sockaddr_in tempClient;
-					bzero((char *) &tempClient, sizeof(tempClient));
-        				tempClient.sin_family = AF_INET;
-        				inet_pton(AF_INET,ip,&(tempClient.sin_addr));
-        				tempClient.sin_port = htons(portNum);
-					
-					*/
 					int sendResult = sendMessage(clientFd,msg,clientTemp);
 					if(sendResult < 0)
 					{
@@ -466,25 +485,68 @@ void Client :: receiver()
 			}
 			else if(code == DELETE)
 			{
+
+				//send acknowledgement first
+                                int sendResult = sendMessage(ackFd,to_string(ACK),leaderAckAddress);
+                                if(sendResult < 0)
+                                {
+                                        #ifdef DEBUG
+                                        cout<<"[DEBUG]acknowledgement for DELETE message not sent"<<endl;
+                                        #endif
+                                }
+
 				// if the chat code sent is DELETE then 
 				//remove that user's entry from chatRoom
 				string key = msgSplit[1];
 				//map<string,string> :: iterator mite;
 				//mite = chatRoom.find(key);
-				chatRoom.erase(key);
+				if(chatRoom.find(key) != chatRoom.end())
+				{
+					chatRoom.erase(key);
+				}
 				#ifdef DEBUG
 				cout <<"[DEBUG]user deleted from the map"<<endl;
 				#endif
 				cout<<msgSplit[2]<<endl;		
 			}
+			else if(code == DEQUEUE)
+			{
+				// dequeue the top message from the queue
+				//send acknowledgement first
+				int sendResult = sendMessage(ackFd,to_string(ACK),leaderAckAddress);
+                                if(sendResult < 0)
+                                {
+                                        #ifdef DEBUG
+                                        cout<<"[DEBUG]acknowledgement for DEQUEUE message not sent"<<endl;
+                                        #endif
+                                }
+				//dequeue message from the front of queue
+				q.pop();	
+				
+			}
+			else if(code == ELECTION)
+			{
+
+			}
 			cout<<endl;
 			 
 		}
 
-		//TODO: verify the message and then accordingly dequeue it from the queue	
+			
 	}
 }
+/*
+void Client :: processReceivedMessage()
+{
+	while(true)
+	{
+		// dequeue the message from the receiveQueue
+		Message m = receiveQueue.pop();
+		string msg = m.	
+	}
 
+}
+*/
 void Client :: exitChatroom() 
 {
 	#ifdef DEBUG
