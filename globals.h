@@ -14,7 +14,6 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-
 #define DEBUG 1	
 
 // chat priority codes
@@ -23,6 +22,7 @@
 #define HEARTBEAT 3
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
+#define ACK 6
 #define CHAT 100
 // threshold for heart-beat in milliseconds
 #define HEARTBEAT_THRESHOLD 10
@@ -94,6 +94,23 @@ class Id {
 		bool operator <(const Id &id2) const;
 };
 
+
+/*
+	Maintain all the information about the chatroom user
+*/
+class ChatRoomUser {
+	public:	
+		int port; // port for broadcast messages
+		int ackPort; // port for Acknowledgements
+		int heartbeatPort; // port for heart beats
+		string ip;
+		string name; // user name of the chatroom user
+		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
+		
+	ChatRoomUser();
+	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
+};
+
 class Leader : public ChatRoomUser
 {
 	int seqNum;   // global sequence number for ordering of messages
@@ -124,29 +141,7 @@ class Leader : public ChatRoomUser
 		void deleteUser(Id clientId);
 };
 
-/*
-	Maintain all the information about the chatroom user
-*/
-class ChatRoomUser {
-	public:	
-		int port; // port for broadcast messages
-		struct sockaddr_in sock;
-		int ackPort; // port for Acknowledgements
-		struct sockaddr_in ackSock;
-		int heartbeatPort; // port for heart beats
-		struct sockaddr_in heartbeatSock;
-		string ip;
-		string name; // user name of the chatroom user
-		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
-		
-		 
-	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
-	ChatRoomUser();
-	void setupSockets();
-};
-
-
-class Client
+class Client  
 {
 
         private:
@@ -189,7 +184,7 @@ class Client
 	void sendHeartbeat();
 	void detectLeaderFailure();
 	void exitChatroom();	
-
+	/*
 	private:
 		string userName;
 		char* leaderIp;
@@ -218,7 +213,8 @@ class Client
 		int joinNetwork(int portNo,string localIp);
 		void sender();
 		void receiver();
-		void exitChatroom();	
+		void exitChatroom();
+		*/	
 };
 
-
+Id getId(struct sockaddr_in);

@@ -5,6 +5,7 @@
 
 using namespace std;
 
+
 string getIp();
 //method to randomly generate port number
 int generatePortNumber(int fd,sockaddr_in &addr);
@@ -25,7 +26,6 @@ int receiveMessage(int fd,sockaddr_in *addr,socklen_t *addrLen, char* buffer);
 */
 int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, int numRetry);
 
-Id getId(struct sockaddr_in);
 
 // function to send heartbeat periodically
 void sendHeartbeat(int fd,sockaddr_in addr);

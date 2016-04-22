@@ -169,12 +169,12 @@ int Client :: establishConnection()
 		#endif
 
 		thread heartBeatPing(&Client::sendHeartbeat,this);
-		//thread detectFailure(&Client::detectLeaderFailure,this);
+		thread detectFailure(&Client::detectLeaderFailure,this);
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
         	sendMsg.join();
         	receiveMsg.join();
-		//detectFailure.join();
+		detectFailure.join();
 		heartBeatPing.join();
  
 	}
@@ -508,27 +508,41 @@ void Client :: exitChatroom()
 void Client :: setupClientPorts()
 {
 	heartBeatFd = socket(AF_INET,SOCK_DGRAM,0);
-		
+			
 	if(heartBeatFd < 0)
 	{
 		#ifdef DEBUG
-		cout<<"socket creation for heart beat failed"<<endl;
+		cout<<"[DEBUG]socket creation for heart beat failed"<<endl;
 		#endif
 	}
+	
+	// set timeout for the socket
 
+	
 	bzero((char *) &heartBeatAddress, sizeof(heartBeatAddress));
         heartBeatAddress.sin_family = AF_INET;
         inet_pton(AF_INET,clientIp.c_str(),&(heartBeatAddress.sin_addr));
 
         // randomly generated port of client for heartbeat
         heartBeatPort = generatePortNumber(heartBeatFd,heartBeatAddress);
+
+	struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 3*HEARTBEAT_THRESHOLD;
+        
+        if(setsockopt(heartBeatFd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout))<0)
+        {
+                #ifdef DEBUG
+                cout<<"[DEBUG]error occurred while executing setsockopt() for heart beat socket"<<endl;
+                #endif
+        }
 	
 	// setting port for receiving acknowledgements
 	ackFd = socket(AF_INET,SOCK_DGRAM,0);
 	if(ackFd < 0)
 	{
 		#ifdef DEBUG
-		cout<<"socket creation for acknowledgements failed\t"<<endl;
+		cout<<"[DEBUG]socket creation for acknowledgements failed\t"<<endl;
 		#endif		
 	}
 	bzero((char *) &ackAddress, sizeof(ackAddress));
@@ -550,9 +564,33 @@ void Client :: sendHeartbeat()
 		if(sendResult == -1)
 		{
 			#ifdef DEBUG
-			cout<<"failed to send heartbeat to the leader"<<endl;
+			cout<<"[DEBUG]failed to send heartbeat to the leader"<<endl;
 			#endif
 		}
-		sleep(HEARTBEAT_THRESHOLD);		
+		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));
 	}
+}
+void Client :: detectLeaderFailure()
+{
+
+	struct sockaddr_in clientTemp;
+        socklen_t clientTempLen = sizeof(clientTemp);
+
+	while(true)
+	{
+		char readBuffer[500];
+		bzero(readBuffer,501);
+		int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
+               
+		if(numChar<0)
+                {
+                        #ifdef DEBUG
+                        cout<<"[DEBUG]no heart beat received from the leader... leader failed"<<endl;
+                        #endif
+			// TODO : start elections since the leader failed			
+                }
+		
+		
+	}				
+
 }

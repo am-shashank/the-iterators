@@ -5,11 +5,11 @@
 #include <string.h> 
 #include <arpa/inet.h>
 #include <string>
-#include "globals.h"
 #include<iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include "globals.h"
 #define MIN_PORTNO 2000
 #define MAX_PORTNO 50000
 
@@ -159,14 +159,14 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, i
 	bzero(writeBuffer,501);
 	socklen_t len = sizeof(addr);
 	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
-	int result = sendto(fd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+	int result = sendto(sendFd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
 	
 	// wait for ACK with timeout
 	struct sockaddr_in clientAdd;
 	socklen_t clientLen = sizeof(clientAdd);
 	char readBuffer[500];
 	bzero(readBuffer, 501);
-	struct timeval timeout={ RETRY_TIMEOUT, 0}; //set timeout for 2 seconds
+	struct timeval timeout={ TIMEOUT_RETRY, 0}; //set timeout for 2 seconds
 	setsockopt(recvFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
 	int recvLen = recvfrom(recvFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
 	// Message Receive Timeout or other error. Resend Message
@@ -174,15 +174,7 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int recvFd, i
 		#ifdef DEBUG
 		cout<<"[DEBUG] Sending "<<msg<<" failed";
 		#endif 
-		sendMessageWithRetry(sendFd, msg, sockaddr_in, recvFd, numRetry - 1);
+		sendMessageWithRetry(sendFd, msg, clientAdd, recvFd, numRetry - 1);
 	}
 	return result;
 }
-
-
-Id getId(struct sockaddr_in addr) {
-	char ip[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);	
-	return Id(string(ip), ntohs(addr.sin_port)); 
-}	
-

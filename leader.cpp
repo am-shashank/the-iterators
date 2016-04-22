@@ -280,7 +280,7 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 void Leader::heartbeatSender(){
 	while(true){		
 		// thread sleep
-		this_thread::sleep_for(std::chrono::milliseconds(HEARTBEAT_THRESHOLD));		
+		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));		
 	}
 }
 
