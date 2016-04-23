@@ -6,6 +6,9 @@ Id::Id(string IpPort) {
         port = atoi(ipPortSplit[1].c_str());
 }
 
+Id::Id() {
+}
+
 Id::Id(string ip1, int port1) {
 	ip = ip1;
         port = port1;

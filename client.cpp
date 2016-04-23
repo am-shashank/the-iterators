@@ -28,6 +28,7 @@ Client :: Client(string name,string leaderIpPort)
 	userName = name;
 	isLeader = false;
 	msgId=0;
+	lastSeenSequenceNum = 0;
 	vector<string> ipPortStr;
 	boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
 	leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -287,7 +288,7 @@ int Client :: joinNetwork(int portNo,string ip)
 					}
 					flag++;
 					cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl;
-					listUsers.clear();
+					//listUsers.clear();
 				} 	
 			}
 			// all users got displayed
@@ -360,7 +361,7 @@ void Client :: sender()
 		string msg = string(msgBuffer);
 		stringstream tempStr;
 		msgId = msgId+1;
-		tempStr<<CHAT<<"%"<<msg<<"%"<<msgId;
+		tempStr<<CHAT<<"%"<< msg<<"%"<<msgId;
 		string finalMsg = tempStr.str();
 		//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
 	
@@ -401,15 +402,20 @@ void Client :: receiver()
 	socklen_t len = sizeof(clientAddress);
 	while(true)
 	{
+		//struct sockaddr_in clientTemp;
+	        //socklen_t clientTempLen = sizeof(clientTemp);
+		//socklen_t len = sizeof(clientAddress);
+
 		char readBuffer[500];
 		bzero(readBuffer,501);
 		
 			
 		#ifdef DEBUG
-		//cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
+		cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
 		#endif
-		int numChar = recvfrom(clientFd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *)&clientTemp,&clientTempLen);
-		if(numChar<0)
+		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
+		
+		if(numChar<=0)
 		{
 			#ifdef DEBUG
 			cout<<"[DEBUG]No message received"<<endl;
@@ -559,6 +565,9 @@ void Client :: receiver()
 void Client :: sendAck(string msg)
 {
 	int sendResult = sendMessage(ackFd,msg,leaderAckAddress);
+	#ifdef DEBUG
+	cout<<"acknowledgement sent"<<endl;
+	#endif
         if(sendResult < 0)
         {
             #ifdef DEBUG
@@ -610,16 +619,16 @@ void Client :: setupClientPorts()
         // randomly generated port of client for heartbeat
         heartBeatPort = generatePortNumber(heartBeatFd,heartBeatAddress);
 
-	struct timeval timeout;
+	/*struct timeval timeout;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 3*HEARTBEAT_THRESHOLD;
+        timeout.tv_usec = 15*HEARTBEAT_THRESHOLD;
         
         if(setsockopt(heartBeatFd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout))<0)
         {
                 #ifdef DEBUG
                 cout<<"[DEBUG]error occurred while executing setsockopt() for heart beat socket"<<endl;
                 #endif
-        }
+        }*/
 	
 	// setting port for receiving acknowledgements
 	ackFd = socket(AF_INET,SOCK_DGRAM,0);
@@ -645,6 +654,9 @@ void Client :: sendHeartbeat()
 	while(true)
 	{
         	int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
+		#ifdef DEBUG
+		cout<<"[DEBUG] heartbeat sent to leader from port\t"<<heartBeatPort<<endl;
+		#endif
 		if(sendResult == -1)
 		{
 			#ifdef DEBUG
@@ -662,19 +674,35 @@ void Client :: detectLeaderFailure()
 
 	while(true)
 	{
-		char readBuffer[500];
-		bzero(readBuffer,501);
-		int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
-               
-		if(numChar<0)
-                {
-                        #ifdef DEBUG
+		struct pollfd myPollFd;
+		myPollFd.fd = heartBeatFd;
+		myPollFd.events = POLLIN;
+		int result = poll(&myPollFd,1,3*HEARTBEAT_THRESHOLD);
+		int receivedMessage = 0;
+		if(result == -1)
+		{
+			#ifdef DEBUG
+			cout<<"[DEBUG]error in socket timeout"<<endl;
+			#endif
+		}
+		else if(result == 0)
+		{
+			// socket timeout
+			#ifdef DEBUG
                         cout<<"[DEBUG]no heart beat received from the leader... leader failed"<<endl;
                         #endif
-			// TODO : start elections since the leader failed			
-                }
-		
-		
+                        // TODO : start elections since the leader failed 
+		}
+		else
+		{
+			char readBuffer[500];
+	                bzero(readBuffer,501);
+        	        int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
+			#ifdef DEBUG
+			cout<<"[DEBUG]heart beat received from leader"<<endl;
+			#endif
+		}
+
 	}				
 
 }

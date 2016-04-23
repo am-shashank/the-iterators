@@ -102,17 +102,23 @@ Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, 
         bzero((char *) &clientAdd, sizeof(clientAdd));
         socklen_t clientLen = sizeof(clientAdd);
         int num_char = recvfrom(sockFd, buffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
-
+	
         // spliting the encoded message
         vector<string> messageSplit;
         boost::split(messageSplit, buffer, boost::is_any_of("%"));
-        int msgId = stoi(messageSplit[1]);
+        int msgCode = atoi(messageSplit[0].c_str());
+	
+	Id clientId;
+	int ackPort;
+	if(msgCode == JOIN) {
+		clientId = Id(messageSplit[3]);
+		ackPort = atoi(messageSplit[4].c_str());
+	} else {
+		clientId = getId(clientAdd);	
+		ackPort = chatRoom[clientId].ackPort;
+	}
+	int msgId = atoi(messageSplit[1].c_str());
 
-        Id clientId = getId(clientAdd);
-        int ackPort = chatRoom[clientId].ackPort;
-        #ifdef DEBUG
-        cout<<"[DEBUG]Received: "<<buffer<<endl;
-        #endif
         // send ACK to clientAckPort with Message Id
         /* set socket attributes for participant's ACK port */
         struct sockaddr_in clientAckAdd;
@@ -120,7 +126,6 @@ Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, 
         clientAckAdd.sin_family = AF_INET;
         inet_pton(AF_INET,clientId.ip.c_str(),&(clientAckAdd.sin_addr));
         clientAckAdd.sin_port = htons(ackPort);
-
         sendMessage(ackFd, to_string(ACK) + "%" + to_string(msgId), clientAckAdd);
         #ifdef DEBUG
         cout<<"[DEBUG]ACK sent for "<<buffer<<endl;
@@ -180,6 +185,10 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, in
 	bzero(writeBuffer,501);
 	socklen_t len = sizeof(addr);
 	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
+	#ifdef DEBUG
+	cout<<"[DEBUG] Sending "<<msg<<endl;
+	#endif
+
 	int result = sendto(sendFd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
 	
 	// wait for ACK with timeout
@@ -197,5 +206,8 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, in
 		#endif 
 		sendMessageWithRetry(sendFd, msg, clientAdd, ackFd, numRetry - 1);
 	}
+	#ifdef DEBUG
+	cout<<"[DEBUG] ACK received for "<<msg<<endl;
+	#endif
 	return result;
 }

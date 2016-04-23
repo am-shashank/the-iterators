@@ -121,7 +121,7 @@ void Leader::parseMessage(char *message, Id clientId) {
 		case CHAT:  	// Format: CHAT%msgId
 			{
 				// Check for duplicate Message
-				int msgId = stoi(messageSplit[2]);
+				int msgId = atoi(messageSplit[2].c_str());
 				if(lastSeenMsgIdMap.find(clientId) != lastSeenMsgIdMap.end()) {
 					if(msgId <= lastSeenMsgIdMap[clientId])
 						break;
@@ -129,7 +129,12 @@ void Leader::parseMessage(char *message, Id clientId) {
 				lastSeenMsgIdMap[clientId] = msgId;
 				/**** Ordering of messages ****/
 				++seqNum;
-				string chatMsg = chatRoom[clientId].name + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId) + to_string(seqNum);
+				string senderName;
+				if(clientId.ip.compare(ip) == 0 && clientId.port == port)
+					senderName = name;
+				else
+					senderName = chatRoom[clientId].name;
+				string chatMsg = senderName + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId) + "%"+ to_string(seqNum);
 				Message responseObj = Message(CHAT,seqNum,chatMsg);
 				q.push(responseObj);
 			}
@@ -206,7 +211,6 @@ void Leader::consumerTask() {
 			#ifdef DEBUG
 				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second.name<<"@"<<it->first<<endl;
 			#endif
-			cout<<msg<<endl;
 			string clientIp = it->first.ip;
 			int clientPort = it->first.port;
  
@@ -221,19 +225,28 @@ void Leader::consumerTask() {
 				deleteUser(Id(clientIp, clientPort));
 		
 		}		
-		
-		// send dequeue request to client
-		vector<string> messageSplit;
-		string message = m.getMessage();
-		boost::split(messageSplit,message,boost::is_any_of("%"));
-		Id clientId = Id(messageSplit[2]);
-		struct sockaddr_in clientAdd;
-                bzero((char *) &clientAdd, sizeof(clientAdd));
-               	clientAdd.sin_family = AF_INET;
-                inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
-		clientAdd.sin_port = htons(clientId.port);
-		if(sendMessageWithRetry(sockFd, to_string(DEQUEUE).c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
-			deleteUser(clientId);
+		vector<string> msgSplit;
+		string msg = m.getMessage();
+                boost::split(msgSplit,msg,boost::is_any_of("%"));
+		if(m.getType() == CHAT) {
+			cout<<msgSplit[0]<<endl;	
+			// send dequeue request to client
+			Id clientId = Id(msgSplit[1]);
+			if(clientId.ip.compare(ip) == 0 && clientId.port == port)
+				continue;
+			struct sockaddr_in clientAdd;
+			bzero((char *) &clientAdd, sizeof(clientAdd));
+			clientAdd.sin_family = AF_INET;
+			inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
+			clientAdd.sin_port = htons(clientId.port);
+			if(sendMessageWithRetry(sockFd, to_string(DEQUEUE).c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
+				deleteUser(clientId);
+						
+		}else if(m.getType() == ADD_USER){
+			cout<<"NOTICE "<<msgSplit[0]<<" joined on "<<msgSplit[1]<<endl;	
+		}else if(m.getType() == DELETE) {
+			cout<<msgSplit[1]<<endl;
+		}
 		
 	}	
 }
@@ -243,7 +256,7 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << port <<" (Leader)"<< "&" << ackPort << "&" << heartbeatPort << "%";
 	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
-		ss << it->second.name << "&" << it->first << "%";		
+		ss << it->second.name << "&" << it->first << "&" << it->second.ackPort << "&" << it->second.heartbeatPort << "%" ;		
 	}
 	
 	/* set socket attributes for participant */
@@ -277,6 +290,9 @@ void Leader::heartbeatSender(){
         		inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
         		clientAdd.sin_port = htons(heartbeatPort);
 			sendMessage(heartbeatSockFd, to_string(HEARTBEAT),clientAdd);	
+			#ifdef DEBUG
+			cout<<"[DEBUG] Sending heartbeat to "<<clientIp<<":"<<heartbeatPort<<endl;
+			#endif
 		}		 			
 		// thread sleep
 		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));		
@@ -294,7 +310,10 @@ void Leader::heartbeatReceiver() {
 	        vector<string> messageSplit;
         	boost::split(messageSplit,readBuffer,boost::is_any_of("%"));
 		Id clientId = Id(messageSplit[1]);
-		chatRoom[clientId].lastHbt = chrono::system_clock::now();		 		
+		chatRoom[clientId].lastHbt = chrono::system_clock::now();		
+		#ifdef DEBUG
+		cout<<"[DEBUG] Heartbeat received from "<<clientId<<endl;
+		#endif 		
 	}
 }
 
@@ -306,12 +325,18 @@ void Leader::detectClientFaliure(){
 		map<Id, ChatRoomUser>::iterator it;
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++){
 			chrono::time_point<chrono::system_clock> beatTime = it->second.lastHbt;
-			chrono::duration<double> elapsedSeconds = beatTime - curTime;
+			chrono::duration<double> elapsedSeconds = curTime - beatTime;
 
 			// edit HEARTBEAT_THRESHOLD to required metric
-			chrono::duration<double> thresholdSeconds =  chrono::duration<double>(HEARTBEAT_THRESHOLD * 0.002);
-			if (elapsedSeconds > thresholdSeconds){
+			chrono::duration<double> thresholdSeconds =  chrono::duration<double>(HEARTBEAT_THRESHOLD * 0.003);
+			#ifdef DEBUG
+			cout<<"[DEBUG] Threshold: "<<thresholdSeconds.count()<<"Elapsed: "<<elapsedSeconds.count()<<endl;
+			#endif
+			if (elapsedSeconds.count() > thresholdSeconds.count()){
 				// Node failure
+				#ifdef DEBUG
+				cout<<"[DEBUG] Detected node failure of "<<it->first<<endl;
+				#endif
 				deleteUser(it->first);
 			} 
 		}
@@ -335,7 +360,14 @@ void Leader::sender() {
                 msgId = msgId+1;
                 tempStr<<CHAT<<"%"<<msg<<"%"<<msgId;
                 string finalMsg = tempStr.str();
-		int sendResult = sendMessageWithRetry(sockFd,finalMsg,sock,ackSockFd,NUM_RETRY);
+
+		struct sockaddr_in clientAdd;
+		bzero((char *) &clientAdd, sizeof(clientAdd));
+		clientAdd.sin_family = AF_INET;
+		inet_pton(AF_INET,ip.c_str(),&(clientAdd.sin_addr));
+		clientAdd.sin_port = htons(port);
+		
+		int sendResult = sendMessageWithRetry(sockFd,finalMsg,clientAdd,ackSockFd,NUM_RETRY);
                 if(sendResult == -1)
                 {
                         #ifdef DEBUG

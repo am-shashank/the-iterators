@@ -29,7 +29,7 @@
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
-#define HEARTBEAT_THRESHOLD 4000 // frequencey at which heart beats are sent in milli seconds 
+#define HEARTBEAT_THRESHOLD 2000 // frequencey at which heart beats are sent in milli seconds 
 #define NUM_RETRY 3 // Number of retries for message
 #define TIMEOUT_RETRY 5 // Timeout for retrying sending of messages ***in seconds***
 #define IS_LEADER 0 // 0 indicates - client, 1 - indicates Leader
@@ -110,6 +110,7 @@ class Id {
 		int port;
 		Id(string ip1, int port1); 
 		Id(string IpPort);
+		Id();
 		bool operator <(const Id &id2) const;
 		friend ostream& operator<<(ostream& o, const Id &obj) {  
         		o<<obj.ip<<":"<<obj.port;
