@@ -29,6 +29,10 @@ Client :: Client(string name,string leaderIpPort)
 	isLeader = false;
 	msgId=0;
 	lastSeenSequenceNum = 0;
+	isOk = false;
+	leaderFound = false;
+	isElection = false;
+	isRecovery = false;
 	vector<string> ipPortStr;
 	boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
 	leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -344,7 +348,7 @@ void Client :: sender()
 	/* sender should take input from console and send it to the leader 
 	along with pushing the message in the blocking Queue*/
 	char msgBuffer[500];
-	
+	// TODO : sender does not send messages if elections have started and isRecovery = true : ******DONE********
 	while(true)
 	{
 		
@@ -369,21 +373,30 @@ void Client :: sender()
                
                 Message m(msgId,msg);
                 q.push(m);
-
-		int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
-		#ifdef DEBUG
-		//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
-		#endif
-		if(sendResult == -1)
-	        {
-        	        #ifdef DEBUG
-                	cout<<"[DEBUG]message could not be sent to the leader"<<endl;
-                	#endif
-        	}
-		else if(sendResult == NODE_DEAD)
+		
+		// send message to the leader only if no elections are being held and new leader is not recovering information
+		if(!isElection && !isRecovery)
 		{
-			//leader died and hence perform elections
-			//TODO: perform elections
+			int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
+			#ifdef DEBUG
+			//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
+			#endif
+			if(sendResult == -1)
+	        	{
+        	        	#ifdef DEBUG
+                		cout<<"[DEBUG]message could not be sent to the leader"<<endl;
+                		#endif
+        		}
+			else if(sendResult == NODE_DEAD)
+			{
+				//leader died and hence perform elections
+				//TODO: perform elections : *******DONE********
+				if(!isElection)
+				{
+					thread electionThread(&Client::startElection,this);
+					electionThread.join();
+				}
+			}
 		}
 		
 		
@@ -534,8 +547,85 @@ void Client :: receiver()
 			}
 			else if(code == ELECTION)
 			{
+				// TODO : send ack to the sender : ******DONE*********
 
+				Id idObj = getId(clientTemp);
+                                int aPort = chatRoom[idObj].ackPort;
+
+                                // create the sockaddr for that client
+                                struct sockaddr_in tempAddr;
+                                bzero((char *) &tempAddr, sizeof(tempAddr));
+                                tempAddr.sin_family = AF_INET;
+                                inet_pton(AF_INET,idObj.ip.c_str(),&(tempAddr.sin_addr));
+                                tempAddr.sin_port = htons(aPort);
+                                int sendResult = sendMessage(ackFd,to_string(ACK),tempAddr);
+	
+				// TODO : set election if election has not been called : *******DONE*********
+				if(!isElection)
+				{
+					// if election did not start yet, start elections
+					thread electionThread(&Client::startElection,this);
+					electionThread.join();
+				}
+				
 			}
+			else if(code == LEADER)
+			{
+				// leader is found
+				leaderFound = true;
+				//set election to false
+				isElection = false;
+
+				// send the acknowledgement
+				Id idObj = getId(clientTemp);
+				int aPort = chatRoom[idObj].ackPort;
+				// create the sockaddr for that client
+                                struct sockaddr_in tempAddr;
+                                bzero((char *) &tempAddr, sizeof(tempAddr));
+                                tempAddr.sin_family = AF_INET;
+                                inet_pton(AF_INET,idObj.ip.c_str(),&(tempAddr.sin_addr));
+                                tempAddr.sin_port = htons(aPort);
+				int sendResult = sendMessage(ackFd,to_string(ACK),tempAddr);
+				if(sendResult < 0)
+				{
+					#ifdef DEBUG
+					cout<<"[DEBUG]failed to send ACK to the new leader"<<endl;
+					#endif
+				}
+				// TODO set all leader attributes
+				// invoking functions to set all leader attributes
+				char *tempIp =const_cast<char*>(idObj.ip.c_str());
+				setLeaderAttributes(tempIp,idObj.port);
+				setupLeaderPorts(chatRoom[idObj].ackPort,chatRoom[idObj].heartbeatPort);					
+			}
+			else if(code == RECOVERY)
+			{
+				//TODO : set isElection as false : ******DONE******
+				// TODO : isRecovery on : *****DONE*****
+				//TODO  send ACK+
+				//TODO send lastSeenSequenceNumber and lastSeenMsg on ack port : *****DONE*****
+				
+				
+				// reset boolean flags
+
+				isRecovery = true;
+				isElection = false;
+
+				// send acknowledgement for recovery message to new leader
+				stringstream msg;
+				msg<<ACK<<"%"<<lastSeenSequenceNum<<"%"<<lastSeenMsg;
+				sendAck(msg.str());
+								
+			}
+			else if(code == CLOSE_RECOVERY)
+			{
+				// TODO set isRecovery = false: ****DONE****
+				
+				isRecovery = false;
+
+				// send acknowledgement to the user
+				sendAck(to_string(ACK));
+			}		
 			else if(code == ADD_USER)
 			{
 				// send acknowledgement to the leader
@@ -572,6 +662,106 @@ void Client :: sendAck(string msg)
         }
 	
 }
+
+// start elections
+void Client:: startElection()
+{
+	
+	isElection = true;
+	
+	do
+	{
+		isOk = false;
+		map<Id, ChatRoomUser>::iterator it;
+                for(it = chatRoom.begin(); it != chatRoom.end(); it++)
+		{
+			if(clientPort < it->first.port)
+			{
+				string ip = it->first.ip;
+				int port = it->first.port;
+
+				// create the ackFd and sockaddr for that client
+				struct sockaddr_in tempAddr;
+                                bzero((char *) &tempAddr, sizeof(tempAddr));
+                                tempAddr.sin_family = AF_INET;
+                                inet_pton(AF_INET,ip.c_str(),&(tempAddr.sin_addr));
+                                tempAddr.sin_port = htons(port);
+				//send election message to the user
+				int sendResult = sendMessageWithRetry(clientFd,to_string(ELECTION),tempAddr,ackFd,NUM_RETRY);
+				if(sendResult != NODE_DEAD && sendResult>0)
+				{
+		
+					isOk = true;
+				}
+		
+			}
+		}
+		// sleep for sometime to detect leader or receive OK message
+		this_thread::sleep_for(chrono::milliseconds(3000));
+
+		//check if the leader was found or not		
+		if(leaderFound)
+		{
+			// found leader so stop election thread
+			//TODO : means someone else is leader/ set new leader attribs : *****DONE*****
+			//TODO : do same thing as been done in CASE : LEADER
+			// already this work is done so just break because leaderFound will be true if and only if CASE: LEADER is reached
+			break;
+		}
+
+
+	}while(isOk);
+	
+	if(!leaderFound)
+	{
+		// TODO leader has not been found so declare itself as leader and stop elections: ******DONE******
+	
+		// send broadcast messages to everyone in the map
+			
+		map<Id, ChatRoomUser>::iterator it;
+                for(it = chatRoom.begin(); it != chatRoom.end(); it++)
+                {
+				if((it->first.ip.compare(clientIp)==0) && (it->first.port == clientPort) )
+					continue;
+                		string ip = it->first.ip;
+                        	int port = it->first.port;
+
+                        	// create the ackFd and sockaddr for that client
+                        	struct sockaddr_in tempAddr;
+                                bzero((char *) &tempAddr, sizeof(tempAddr));
+                                tempAddr.sin_family = AF_INET;
+                                inet_pton(AF_INET,ip.c_str(),&(tempAddr.sin_addr));
+                                tempAddr.sin_port = htons(port);
+                                //send election message to the user
+                                int sendResult = sendMessageWithRetry(clientFd,to_string(LEADER),tempAddr,ackFd,NUM_RETRY);
+                                if(sendResult == NODE_DEAD)
+				{
+					// if the node is dead then remove that node from the map 
+					chatRoom.erase(it->first);
+				}
+
+		}
+
+		isElection = false;
+
+		// TODO create leader object: *****DONE*****	
+		//TODO create new leader constructor with name,ip,ports and chatroom map without your own : ******DONE*******
+	
+		//TODO close all client threads/sockets  and detach
+
+		// remove this new leader from the map
+		Id obj(clientIp,clientPort);
+		ChatRoomUser clientUser = chatRoom[obj];
+		chatRoom.erase(obj);
+		
+		// TODO take care of all the previous client threads
+		
+		// creating a new leader object: *****DONE******
+		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort,chatRoom);		
+	}
+}
+
+
 void Client :: exitChatroom() 
 {
 	#ifdef DEBUG
@@ -588,7 +778,7 @@ void Client :: exitChatroom()
 		cout<<"[DEBUG]delete request could not be sent\t"<<endl;
 		#endif
 	}
-	// TODO: close socket, terminate thread	
+	
 	close(clientFd);
 	exit(0);
 }
@@ -641,13 +831,16 @@ void Client :: setupClientPorts()
         ackPort = generatePortNumber(ackFd,ackAddress);
 	 	
 }
+
+// TODO : if elections,don't send the heart beat since no leader now : ******DONE******
 void Client :: sendHeartbeat()
 {
 	//the function should periodically send a heartbeat ping to the leader
 	stringstream tempStr;
         tempStr<<HEARTBEAT<<"%"<<clientIp<<":"<<clientPort;
         string finalMsg = tempStr.str();
-	while(true)
+	// send heart beats only if the elections are not being held
+	while(!isElection)
 	{
         	int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
 		if(sendResult == -1)
@@ -659,13 +852,14 @@ void Client :: sendHeartbeat()
 		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));
 	}
 }
+// TODO : if elections terminate detectLeaderFailure : ******DONE******
 void Client :: detectLeaderFailure()
 {
 
 	struct sockaddr_in clientTemp;
         socklen_t clientTempLen = sizeof(clientTemp);
-
-	while(true)
+	// receive the heart beats and detect for failure of the leader only if no elections are being held
+	while(!isElection)
 	{
 		struct pollfd myPollFd;
 		myPollFd.fd = heartBeatFd;
@@ -684,7 +878,12 @@ void Client :: detectLeaderFailure()
 			#ifdef DEBUG
                         cout<<"[DEBUG]no heart beat received from the leader... leader failed"<<endl;
                         #endif
-                        // TODO : start elections since the leader failed 
+                        // TODO : start elections since the leader failed: *****DONE******
+			if(!isElection)
+			{
+				thread electionThread(&Client::startElection,this);
+				electionThread.join();
+			} 
 		}
 		else
 		{
