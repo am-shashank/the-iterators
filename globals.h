@@ -17,14 +17,16 @@
 #define DEBUG 1	
 
 // chat priority codes
+
 #define JOIN 1
 #define DELETE 2
 #define HEARTBEAT 3
 #define RESOLVE_LEADER 4
 #define LIST_OF_USERS 5
 #define ACK 6
-#define CHAT 100
+#define ELECTION 7
 #define ADD_USER 8
+#define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
 #define HEARTBEAT_THRESHOLD 4000 // frequencey at which heart beats are sent in milli seconds 
@@ -43,7 +45,8 @@ class Message
 	int msgId;
 
 	public:
-	
+
+	Message(string message);	
 	Message(int messageId,string message);
 	Message(int messageType,int seqNum,string message);
 	int getType();
@@ -67,6 +70,8 @@ class BlockingPQueue
 		Message pop();
 
 };
+
+
 class ClientQueue
 {
 	private:
@@ -115,7 +120,6 @@ Id getId(struct sockaddr_in clientAdd);
 Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, char* buffer);
 
 
-
 class Leader : public ChatRoomUser
 {
 	int seqNum;   // global sequence number for ordering of messages
@@ -156,13 +160,16 @@ class Client
         string userName;
         char* leaderIp;
         int leaderPort;
-	int leaderAckPort;
-	int leaderHeartBeatPort;
+	//int leaderAckPort;
+	//int leaderHeartBeatPort;
 	int clientPort;
 	int heartBeatPort;
 	int ackPort;
 	string clientIp;
 	bool isLeader;
+	// variable to check last seen msg and sequence number
+	string lastSeenMsg;
+	int lastSeenSequenceNum;
 	// client socket descriptor
         int clientFd;
 	// client socket descriptor for heart beat and acknowledgements
@@ -175,53 +182,25 @@ class Client
         socklen_t clientAddressLength;
 
 	// hash map to store list of active users       
-        map<string,string> chatRoom;
+        map<Id,ChatRoomUser> chatRoom;
 
-	// object for blocking queue for client
+	// objects for blocking queue for client
         ClientQueue q;
 
         public:
         Client(string name,string leaderIpPort);
         int establishConnection();
 	void setupClientPorts();
-	void setupLeaderPorts(int lAckPort,int ackPort);
+	void setupLeaderPorts(int lAckPort,int heartbeatPort);
 	void setLeaderAttributes(char* ip, int port);
         int joinNetwork(int portNo,string localIp);
 	void sender();
 	void receiver();
+	//void processReceivedMessage();
 	void sendHeartbeat();
 	void detectLeaderFailure();
 	void exitChatroom();	
-	/*
-	private:
-		string userName;
-		char* leaderIp;
-		int leaderPort;
-		int clientPort;
-		string clientIp;
-		bool isLeader;
-		// client socket descriptor
-		int clientFd;
-		// declare a message id which would be unique for every message sent by the client
-		int msgId;
-		struct sockaddr_in leaderAddress, clientAddress;
-		socklen_t leaderAddressLength;
-		socklen_t clientAddressLength;
-
-		// hash map to store list of active users       
-		map<string,string> chatRoom;
-
-		// object for blocking queue for client
-		ClientQueue q;
-
-	public:
-		Client(string name,string leaderIpPort);
-		int establishConnection();
-		void setLeaderAttributes(char* ip, int port);
-		int joinNetwork(int portNo,string localIp);
-		void sender();
-		void receiver();
-		void exitChatroom();
-		*/	
+	void sendAck(string msg);
+		
 };
 

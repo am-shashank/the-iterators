@@ -6,6 +6,7 @@ As part of the project, we will be implementing a fully ordered multicast chat s
 ## Various Modules
 - Naming Module
 - Total Ordering/ Sequencer Module
+- Heartbeat Module
 - Recovery Module
   - Message Failure Recovery Module
   - Election Module

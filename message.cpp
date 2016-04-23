@@ -2,6 +2,10 @@
 
 using namespace std;
 
+Message :: Message(string message)
+{
+	buffer = message;
+}
 Message :: Message(int messageType,int seqNum,string message)
 {
 	type = messageType;

@@ -50,21 +50,21 @@ void Client :: setLeaderAttributes(char* ip, int port)
 }
 void Client:: setupLeaderPorts(int lAckPort, int heartbeatPort)
 {
-	leaderAckPort = lAckPort;
-        leaderHeartBeatPort = heartbeatPort;
+	//leaderAckPort = lAckPort;
+        //leaderHeartBeatPort = heartbeatPort;
 	
 	
         // setup for sending acknowledgements to leader
         bzero((char *) &leaderAckAddress, sizeof(leaderAckAddress));
         leaderAckAddress.sin_family = AF_INET;
         inet_pton(AF_INET,leaderIp,&(leaderAckAddress.sin_addr));
-        leaderAckAddress.sin_port = htons(leaderAckPort);
+        leaderAckAddress.sin_port = htons(lAckPort);
 
         // setup for sending heartbeat to leader
         bzero((char *) &leaderHeartBeatAddress, sizeof(leaderHeartBeatAddress));
         leaderHeartBeatAddress.sin_family = AF_INET;
         inet_pton(AF_INET,leaderIp,&(leaderHeartBeatAddress.sin_addr));
-        leaderHeartBeatAddress.sin_port = htons(leaderHeartBeatPort);
+        leaderHeartBeatAddress.sin_port = htons(heartbeatPort);
 
 
 }
@@ -110,49 +110,11 @@ int Client :: establishConnection()
 
 	// randomly generated port of client
 	clientPort = generatePortNumber(clientFd,clientAddress);
-	/*
-	struct timeval t1;
-        gettimeofday(&t1, NULL);
-        srand(t1.tv_usec * t1.tv_sec);
-	
-	while(true) {
-
-                int range = MAX_PORTNO - MIN_PORTNO + 1;
-                clientPort = rand() % range + MIN_PORTNO;
-		#ifdef DEBUG
-		//cout<<"[DEBUG]client port generated\t"<<clientPort<<endl;
-		#endif
-                clientAddress.sin_port = htons(clientPort);
-		#ifdef DEBUG
-		//cout <<"[DEBUG] sin_port generated\t"<<htons(clientPort)<<endl;
-		#endif
-
-                if(bind(clientFd, (struct sockaddr *)&clientAddress, sizeof(clientAddress)) < 0) {
-                        cerr << "Error: Cannot bind socket on " <<clientPort<<endl;
-                }else
-                        break;
-
-        }
-	*/
 	#ifdef DEBUG
 	//cout<<"[DEBUG]port for client address structure\t"<<clientAddress.sin_port<<endl;
 	#endif
 
 
-        //clientAddress.sin_port = htons(clientPort);
-	// set timeout for client socket
-	/*struct timeval timeout;
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 5000;
-	
-	if(setsockopt(clientFd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout))<0)
-	{
-		#ifdef DEBUG
-		cout<<"[DEBUG]error occurred while executing setsockopt()"<<endl;
-		#endif
-	}*/
-
-	//since bind was successful print the message on client's screen
 	cout<<userName<<" joining a new chat on\t"<<leaderIp<<":"<<leaderPort<<", listening on "<<clientIp<<":"<<clientPort<<endl;
 
 	// setup other client ports for sending heartbeat and receiving acknowledgements
@@ -173,8 +135,10 @@ int Client :: establishConnection()
 		thread detectFailure(&Client::detectLeaderFailure,this);
 		thread sendMsg(&Client:: sender, this);
         	thread receiveMsg(&Client:: receiver, this);
+		//thread processMsg(&Client:: processReceivedMessage,this);
         	sendMsg.join();
         	receiveMsg.join();
+		//processMsg.join();
 		detectFailure.join();
 		heartBeatPing.join();
  
@@ -197,11 +161,12 @@ int Client :: joinNetwork(int portNo,string ip)
 	socklen_t len = sizeof(clientAddress);
 
 	std::stringstream joinMsg;
+	msgId=msgId+1;
 
-	joinMsg<< JOIN<<"%" << userName <<"%" <<ip<<":"<<portNo<<"%"<<ackPort<<"%"<<heartBeatPort;
+	joinMsg<< JOIN<<"%"<<msgId<<"%" << userName <<"%" <<ip<<":"<<portNo<<"%"<<ackPort<<"%"<<heartBeatPort;
 	string msg = joinMsg.str();
 
-	int sendResult = sendMessage(clientFd,msg,leaderAddress);
+	int sendResult = sendMessageWithRetry(clientFd,msg,leaderAddress,ackFd,NUM_RETRY);
 	#ifdef DEBUG
 	//cout<<"[DEBUG]message sent\t"<<sendResult<<endl;
 	#endif
@@ -246,6 +211,7 @@ int Client :: joinNetwork(int portNo,string ip)
 	}
 	else
 	{
+		//TODO : change receive message to receive message with ack
 		receivedMessage = receiveMessage(clientFd, &clientTemp, &clientTempLen,readBuffer);
 	}
 
@@ -298,13 +264,26 @@ int Client :: joinNetwork(int portNo,string ip)
 					//cout<<"size after splitting on &\t"<<listUsers.size()<<endl;
 					#endif
 					// users added to the map
-					if(flag != 0)
+					
+                                        Id idObj(listUsers[1]);
+                                        ChatRoomUser userObj(listUsers[0],atoi(listUsers[2].c_str()),atoi(listUsers[3].c_str()));
+                                        chatRoom[idObj] = userObj;
+					// setup ack and heartbeat ports for leader
+					if(flag == 0)
 					{
-						chatRoom[listUsers[1]] = listUsers[0];
-					}
-					else
-					{
-						setupLeaderPorts(atoi(listUsers[2].c_str()),atoi(listUsers[3].c_str()));		
+						// setup leader ports and send ACK to leader
+						setupLeaderPorts(atoi(listUsers[2].c_str()),atoi(listUsers[3].c_str()));
+
+						// send ack to the leader
+						int sendResult = sendMessage(ackFd,to_string(ACK),leaderAckAddress);
+                                		if(sendResult < 0)
+                                		{
+                                 		       #ifdef DEBUG
+                                        		cout<<"[DEBUG]acknowledgement for join message not sent to leader"<<endl;
+                                        		#endif
+                                		}
+ 		
+		
 					}
 					flag++;
 					cout<<listUsers[0]<<"\t"<<listUsers[1]<<endl;
@@ -321,7 +300,25 @@ int Client :: joinNetwork(int portNo,string ip)
 			boost::split(ipPort,listMessages[1],boost::is_any_of(":"));
 			char *ip = const_cast<char*>(ipPort[0].c_str());
         		int portNum = atoi(ipPort[1].c_str());
+			char *tempIp = const_cast<char*>(listMessages[2].c_str()); 
+			int aPort = atoi(listMessages[3].c_str());
 
+			// send acknowledgement to this client
+			struct sockaddr_in tempAddr;
+			bzero((char *) &tempAddr, sizeof(tempAddr));
+        		tempAddr.sin_family = AF_INET;
+        		inet_pton(AF_INET,tempIp,&(tempAddr.sin_addr));
+        		tempAddr.sin_port = htons(aPort);
+			
+			int sendResult = sendMessage(ackFd,to_string(ACK),tempAddr);
+                        if(sendResult < 0)
+                         {
+                         	#ifdef DEBUG
+                               	cout<<"[DEBUG]acknowledgement for resolve leader not sent to client"<<endl;
+                            	#endif
+                         }
+
+			 
 			// set the attributes for the leader
 			setLeaderAttributes(ip,portNum);
 
@@ -362,9 +359,17 @@ void Client :: sender()
 		// send the message to the leader
 		string msg = string(msgBuffer);
 		stringstream tempStr;
-		tempStr<<CHAT<<"%"<<msg;
+		msgId = msgId+1;
+		tempStr<<CHAT<<"%"<<msg<<"%"<<msgId;
 		string finalMsg = tempStr.str();
-		int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+		//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+	
+		// create an object of the message class and enque the message
+               
+                Message m(msgId,msg);
+                q.push(m);
+
+		int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
 		#ifdef DEBUG
 		//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
 		#endif
@@ -374,12 +379,12 @@ void Client :: sender()
                 	cout<<"[DEBUG]message could not be sent to the leader"<<endl;
                 	#endif
         	}
-		// enque the message in the clientQueue
+		else if(sendResult == NODE_DEAD)
+		{
+			//leader died and hence perform elections
+			//TODO: perform elections
+		}
 		
-		// create an object of the message class
-		msgId = msgId+1;
-		Message m(msgId,msg);
-		q.push(m);		
 		
 	}
 }
@@ -403,7 +408,7 @@ void Client :: receiver()
 		#ifdef DEBUG
 		//cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
 		#endif
-		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
+		int numChar = recvfrom(clientFd,readBuffer,sizeof(readBuffer),0,(struct sockaddr *)&clientTemp,&clientTempLen);
 		if(numChar<0)
 		{
 			#ifdef DEBUG
@@ -425,35 +430,68 @@ void Client :: receiver()
 			int code = atoi(msgSplit[0].c_str());
 			if(code == CHAT)
 			{
+				/*
 				for(;ite!= msgSplit.end();ite++)
 				{
 					cout<<*ite<<"\t";
 				}	
+				*/
+				stringstream msg;
+                                msg<<ACK;
+                                string ackMsg = msg.str();
+				
+				// send acknowledgements
+				sendAck(ackMsg);
+
+				lastSeenMsg = msgSplit[1];
+				string ipPort = msgSplit[2];
+				int mid = atoi(msgSplit[3].c_str());
+				int currentSequenceNum = atoi(msgSplit[4].c_str());
+				
+				if(currentSequenceNum >  lastSeenSequenceNum)
+				{
+					lastSeenSequenceNum = currentSequenceNum;
+					cout<<lastSeenMsg<<endl;		
+				}
 			}
 			else if(code == JOIN)
 			{
 				// if the client receives a join request
 				// send the leader's Ip and port to the respective client
+							
+				vector<string> ipPort;
+                        	boost::split(ipPort,msgSplit[3],boost::is_any_of(":"));
+                        	char *ip = const_cast<char*>(ipPort[0].c_str());
+                        	int aPort = atoi(msgSplit[4].c_str());
+
+                        	// send acknowledgement to this client
+                        	struct sockaddr_in tempAddr;
+                        	bzero((char *) &tempAddr, sizeof(tempAddr));
+                        	tempAddr.sin_family = AF_INET;
+                        	inet_pton(AF_INET,ip,&(tempAddr.sin_addr));
+                        	tempAddr.sin_port = htons(aPort);
+
+                        	int sendResult = sendMessage(ackFd,to_string(ACK),tempAddr);
+                        	if(sendResult < 0)
+                         	{
+                                	#ifdef DEBUG
+                                	cout<<"[DEBUG]acknowledgement for join message not sent to client"<<endl;
+                                	#endif
+                         	}
+
+				
+				
 				if(!isLeader)
 				{
+
+					// first send ACK to that client
+					// spilt/parse message
+					
+
 					stringstream resolveMsg;
-					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort;
+					resolveMsg<<RESOLVE_LEADER<<"%"<<leaderIp<<":"<<leaderPort<<"%"<<clientIp<<"%"<<ackPort;
 					string msg = resolveMsg.str();
 					//send the leaderIp & leaderPort to client
-
-					/*
-					vector<string> ipPort;
-					boost::split(ipPort,msgSplit[1],boost::is_any_of(":"));
-					char *ip = const_cast<char*>(ipPort[0].c_str());
-                        		int portNum = atoi(ipPort[1].c_str());
-						
-					struct sockaddr_in tempClient;
-					bzero((char *) &tempClient, sizeof(tempClient));
-        				tempClient.sin_family = AF_INET;
-        				inet_pton(AF_INET,ip,&(tempClient.sin_addr));
-        				tempClient.sin_port = htons(portNum);
-					
-					*/
 					int sendResult = sendMessage(clientFd,msg,clientTemp);
 					if(sendResult < 0)
 					{
@@ -466,25 +504,69 @@ void Client :: receiver()
 			}
 			else if(code == DELETE)
 			{
-				// if the chat code sent is DELETE then 
+
+				//send acknowledgement first
+				sendAck(to_string(ACK));
+
 				//remove that user's entry from chatRoom
 				string key = msgSplit[1];
 				//map<string,string> :: iterator mite;
 				//mite = chatRoom.find(key);
-				chatRoom.erase(key);
+				if(chatRoom.find(key) != chatRoom.end())
+				{
+					chatRoom.erase(key);
+				}
 				#ifdef DEBUG
 				cout <<"[DEBUG]user deleted from the map"<<endl;
 				#endif
 				cout<<msgSplit[2]<<endl;		
 			}
+			else if(code == DEQUEUE)
+			{
+				// dequeue the top message from the queue
+				//send acknowledgement first
+				sendAck(to_string(ACK));
+				//dequeue message from the front of queue
+				q.pop();	
+				
+			}
+			else if(code == ELECTION)
+			{
+
+			}
+			else if(code == ADD_USER)
+			{
+				// send acknowledgement to the leader
+				sendAck(to_string(ACK));
+				// print the message on the screen
+				cout<<"NOTICE "<<msgSplit[1]<<" joined on "<<msgSplit[2]<<endl;
+				// add the new user's information in the map
+				Id idObj(msgSplit[2]);
+				ChatRoomUser userObj(msgSplit[1],atoi(msgSplit[3].c_str()),atoi(msgSplit[4].c_str()));
+				chatRoom[idObj] = userObj;		
+
+				#ifdef DEBUG
+				cout<<"[DEBUG]New user added in the chat room map"<<endl;
+				#endif
+			}
 			cout<<endl;
 			 
 		}
 
-		//TODO: verify the message and then accordingly dequeue it from the queue	
+			
 	}
 }
-
+void Client :: sendAck(string msg)
+{
+	int sendResult = sendMessage(ackFd,msg,leaderAckAddress);
+        if(sendResult < 0)
+        {
+            #ifdef DEBUG
+            cout<<"[DEBUG]acknowledgement could not be sent"<<endl;
+            #endif
+        }
+	
+}
 void Client :: exitChatroom() 
 {
 	#ifdef DEBUG
@@ -505,7 +587,8 @@ void Client :: exitChatroom()
 	close(clientFd);
 	exit(0);
 }
-// setup heartbeat socket
+
+// setup heartbeat socket and acknowledgement sockets
 void Client :: setupClientPorts()
 {
 	heartBeatFd = socket(AF_INET,SOCK_DGRAM,0);
