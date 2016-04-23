@@ -409,10 +409,6 @@ void Client :: receiver()
 		char readBuffer[500];
 		bzero(readBuffer,501);
 		
-			
-		#ifdef DEBUG
-		cout<<"[DEBUG] Before Recieve message in receiver"<<endl;
-		#endif
 		int numChar = receiveMessage(clientFd,&clientTemp,&clientTempLen,readBuffer);
 		
 		if(numChar<=0)
@@ -566,7 +562,7 @@ void Client :: sendAck(string msg)
 {
 	int sendResult = sendMessage(ackFd,msg,leaderAckAddress);
 	#ifdef DEBUG
-	cout<<"acknowledgement sent"<<endl;
+	cout<<"ACK sent for "<<msg<<endl;
 	#endif
         if(sendResult < 0)
         {
@@ -654,9 +650,6 @@ void Client :: sendHeartbeat()
 	while(true)
 	{
         	int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
-		#ifdef DEBUG
-		cout<<"[DEBUG] heartbeat sent to leader from port\t"<<heartBeatPort<<endl;
-		#endif
 		if(sendResult == -1)
 		{
 			#ifdef DEBUG
@@ -698,9 +691,6 @@ void Client :: detectLeaderFailure()
 			char readBuffer[500];
 	                bzero(readBuffer,501);
         	        int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
-			#ifdef DEBUG
-			cout<<"[DEBUG]heart beat received from leader"<<endl;
-			#endif
 		}
 
 	}				

@@ -11,6 +11,8 @@ using namespace std;
 
 
 Leader :: Leader(string leaderName) {
+	msgId = 0;
+	seqNum = 0;
 	name = leaderName;
 	ip = getIp();
 	startServer();	
@@ -140,9 +142,10 @@ void Leader::parseMessage(char *message, Id clientId) {
 			}
 			break;
 		case DELETE:
-			{
-				deleteUser(clientId);	
-			}	
+			deleteUser(clientId);	
+			break;
+		case DEQUEUE:
+			sendQ.pop();
 			break;
 		default:
 			cout<<"Invalid chat code sent by participant"<<endl;
@@ -230,10 +233,8 @@ void Leader::consumerTask() {
                 boost::split(msgSplit,msg,boost::is_any_of("%"));
 		if(m.getType() == CHAT) {
 			cout<<msgSplit[0]<<endl;	
-			// send dequeue request to client
+			// send dequeue request
 			Id clientId = Id(msgSplit[1]);
-			if(clientId.ip.compare(ip) == 0 && clientId.port == port)
-				continue;
 			struct sockaddr_in clientAdd;
 			bzero((char *) &clientAdd, sizeof(clientAdd));
 			clientAdd.sin_family = AF_INET;
@@ -290,9 +291,6 @@ void Leader::heartbeatSender(){
         		inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
         		clientAdd.sin_port = htons(heartbeatPort);
 			sendMessage(heartbeatSockFd, to_string(HEARTBEAT),clientAdd);	
-			#ifdef DEBUG
-			cout<<"[DEBUG] Sending heartbeat to "<<clientIp<<":"<<heartbeatPort<<endl;
-			#endif
 		}		 			
 		// thread sleep
 		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));		
@@ -311,9 +309,6 @@ void Leader::heartbeatReceiver() {
         	boost::split(messageSplit,readBuffer,boost::is_any_of("%"));
 		Id clientId = Id(messageSplit[1]);
 		chatRoom[clientId].lastHbt = chrono::system_clock::now();		
-		#ifdef DEBUG
-		cout<<"[DEBUG] Heartbeat received from "<<clientId<<endl;
-		#endif 		
 	}
 }
 
@@ -329,9 +324,6 @@ void Leader::detectClientFaliure(){
 
 			// edit HEARTBEAT_THRESHOLD to required metric
 			chrono::duration<double> thresholdSeconds =  chrono::duration<double>(HEARTBEAT_THRESHOLD * 0.003);
-			#ifdef DEBUG
-			cout<<"[DEBUG] Threshold: "<<thresholdSeconds.count()<<"Elapsed: "<<elapsedSeconds.count()<<endl;
-			#endif
 			if (elapsedSeconds.count() > thresholdSeconds.count()){
 				// Node failure
 				#ifdef DEBUG
@@ -367,6 +359,9 @@ void Leader::sender() {
 		inet_pton(AF_INET,ip.c_str(),&(clientAdd.sin_addr));
 		clientAdd.sin_port = htons(port);
 		
+		Message m(msgId,msg);
+                sendQ.push(m);
+	
 		int sendResult = sendMessageWithRetry(sockFd,finalMsg,clientAdd,ackSockFd,NUM_RETRY);
                 if(sendResult == -1)
                 {

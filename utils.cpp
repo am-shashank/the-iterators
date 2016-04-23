@@ -185,9 +185,6 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, in
 	bzero(writeBuffer,501);
 	socklen_t len = sizeof(addr);
 	strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
-	#ifdef DEBUG
-	cout<<"[DEBUG] Sending "<<msg<<endl;
-	#endif
 
 	int result = sendto(sendFd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
 	
@@ -202,12 +199,13 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, in
 	// Message Receive Timeout or other error. Resend Message
 	if (recvLen <= 0) {
 		#ifdef DEBUG
-		cout<<"[DEBUG] Sending "<<msg<<" failed";
+		cout<<"[DEBUG] Retrying "<<msg<<endl;
 		#endif 
 		sendMessageWithRetry(sendFd, msg, clientAdd, ackFd, numRetry - 1);
+	}else {
+		#ifdef DEBUG
+		cout<<"[DEBUG] ACK received for "<<msg<<endl;
+		#endif
 	}
-	#ifdef DEBUG
-	cout<<"[DEBUG] ACK received for "<<msg<<endl;
-	#endif
 	return result;
 }

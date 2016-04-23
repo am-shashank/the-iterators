@@ -29,7 +29,7 @@
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
-#define HEARTBEAT_THRESHOLD 2000 // frequencey at which heart beats are sent in milli seconds 
+#define HEARTBEAT_THRESHOLD 4000 // frequencey at which heart beats are sent in milli seconds 
 #define NUM_RETRY 3 // Number of retries for message
 #define TIMEOUT_RETRY 5 // Timeout for retrying sending of messages ***in seconds***
 #define IS_LEADER 0 // 0 indicates - client, 1 - indicates Leader
@@ -126,7 +126,7 @@ class Leader : public ChatRoomUser
 {
 	int seqNum;   // global sequence number for ordering of messages
 	BlockingPQueue q;  // Blocking Priority Queue to maintain incoming messages to be broadcasted
-	
+	ClientQueue sendQ; // leader's client queue to send messages typed by him	
 	int sockFd, heartbeatSockFd, ackSockFd;
 	struct sockaddr_in sock, heartbeatSock, ackSock;
 	
