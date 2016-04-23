@@ -26,6 +26,9 @@
 #define ACK 6
 #define ELECTION 7
 #define ADD_USER 8
+#define LEADER 9
+#define RECOVERY 11
+#define CLOSE_RECOVERY 12
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
@@ -136,7 +139,8 @@ class Leader : public ChatRoomUser
 	
 	int msgId; // message id for leader
 	public:
-		Leader(string leaderName); 
+		Leader(string leaderName);
+		Leader(string name,string ip,int port,int ackPort,int heartbeatPort,map<Id,ChatRoomUser> myMap); 
 		void startServer();
 		void printStartMessage();
 		// Thread task to listen for messages in chatroom from participants
@@ -182,6 +186,13 @@ class Client
 	int ackFd;
 	// declare a message id which would be unique for every message sent by the client
 	int msgId;
+
+	// flags being used during the election
+	bool isOk;
+	bool isElection;
+	bool leaderFound;
+	bool isRecovery;
+
         struct sockaddr_in leaderAddress,leaderAckAddress,leaderHeartBeatAddress,clientAddress, heartBeatAddress, ackAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
@@ -206,6 +217,8 @@ class Client
 	void detectLeaderFailure();
 	void exitChatroom();	
 	void sendAck(string msg);
+	// start elections
+	void startElection();
 		
 };
 

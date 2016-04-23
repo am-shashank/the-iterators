@@ -15,7 +15,16 @@ Leader :: Leader(string leaderName) {
 	ip = getIp();
 	startServer();	
 }
+Leader ::Leader(string name,string ip,int port,int ackPort,int heartbeatPort,map<Id,ChatRoomUser> myMap)
+{
+	this->name = name;
+	this->port = port;
+	this->ackPort = ackPort;
+	this->heartbeatPort = heartbeatPort;
+	chatRoom = myMap;
 
+	// TODO proceed with the recovery messages	
+}
 /* Start UDP server on a random unused port number 
    and invoke the producer and consumer threads
 */
