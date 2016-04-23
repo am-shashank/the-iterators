@@ -20,43 +20,42 @@ Leader :: Leader(string leaderName) {
    and invoke the producer and consumer threads
 */
 void Leader :: startServer(){
-	// create UDP socket
+    // create UDP socket
     sockFd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero((char*) &sock, sizeof(sock));
     sock.sin_family = AF_INET;
     sock.sin_addr.s_addr = INADDR_ANY;
-	port = generatePortNumber(sockFd, sock); 
+    port = generatePortNumber(sockFd, sock); 
 
     printStartMessage();
 	
-	// Start producer and consumer threads
-	thread prod(&Leader::producerTask, this, sockFd);
-	thread con(&Leader::consumerTask, this);	
-	prod.join();
-	con.join();	
+    // Start producer and consumer threads
+    thread prod(&Leader::producerTask, this, sockFd);
+    thread con(&Leader::consumerTask, this);	
+    prod.join();
+    con.join();	
 
-	// create heartbeat socket
-	heartbeatSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    // create heartbeat socket
+    heartbeatSockFd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero((char*) &heartbeatSock, sizeof(heartbeatSock));
     heartbeatSock.sin_family = AF_INET;
     heartbeatSock.sin_addr.s_addr = INADDR_ANY;
     heartbeatPort = generatePortNumber(heartbeatSockFd, heartbeatSock);
-	// Start heartbeat threads
-	thread heartbeatSend(&Leader::heartbeatSender, this);
-	thread heartbeatRecv(&Leader::producerTask, this, heartbeatSockFd);
-	thread detectFailure(&Leader::detectClientFaliure, this);
-	heartbeatSend.join();
-	heartbeatRecv.join();
-	detectFailure.join();
+    
+    // Start heartbeat threads
+    thread heartbeatSend(&Leader::heartbeatSender, this);
+    thread heartbeatRecv(&Leader::heartbeatReceiver, this);
+    thread detectFailure(&Leader::detectClientFaliure, this);
+    heartbeatSend.join();
+    heartbeatRecv.join();
+    detectFailure.join();
 	
-	// create ACK socket
-	ackSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    // create ACK socket
+    ackSockFd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero((char*) &ackSock, sizeof(ackSock));
     ackSock.sin_family = AF_INET;
     ackSock.sin_addr.s_addr = INADDR_ANY;
-	ackPort = generatePortNumber(ackSockFd, ackSock);
-	
-
+    ackPort = generatePortNumber(ackSockFd, ackSock);
 }
 
 /*  Print welcome message on start of UDP server
@@ -88,31 +87,40 @@ void Leader::parseMessage(char *message, Id clientId) {
     
 	int messageType = atoi(messageSplit[0].c_str());
 	switch(messageType) {
-		case JOIN:        // Format: JOIN%userName%ip:portNo%ackPortNum%heartBeatPortNum
+		case JOIN:        // Format: JOIN%msgId%userName%ip:portNo%ackPortNum%heartBeatPortNum
 			{
 				// Add new user to map 
-				string user = messageSplit[1];
+				string user = messageSplit[2];
 				vector<string> ipPortSplit;
-				boost::split(ipPortSplit,messageSplit[2],boost::is_any_of(":"));
+				boost::split(ipPortSplit,messageSplit[3],boost::is_any_of(":"));
 				string ip = ipPortSplit[0];
 				int port = atoi(ipPortSplit[1].c_str());
-				int ackPort = atoi(messageSplit[3].c_str());
-				int heartbeatPort = atoi(messageSplit[4].c_str());
+				int ackPort = atoi(messageSplit[4].c_str());
+				int heartbeatPort = atoi(messageSplit[5].c_str());
 				chatRoom[clientId] = ChatRoomUser(user, ip, port, ackPort, heartbeatPort);
 				
 				sendListUsers(clientId.ip, clientId.port); 
 				
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << "NOTICE " << user << " joined on " << clientId;
-				Message responseObj = Message(CHAT, ++seqNum, response.str());
+				response << user << "%" << ip << ":" << port << "%" << ackPort <<"%" << heartbeatPort;
+				Message responseObj = Message(ADD_USER, ++seqNum, response.str());
 				q.push(responseObj);		
 			}			
 			break;
-		case CHAT:
+		case CHAT:  	// Format: CHAT%msgId
 			{
+				// Check for duplicate Message
+				int msgId = stoi(messageSplit[2]);
+				if(lastSeenMsgIdMap.find(clientId) != lastSeenMsgIdMap.end()) {
+					if(msgId <= lastSeenMsgIdMap[clientId])
+						break;
+				}
+				lastSeenMsgIdMap[clientId] = msgId;
 				/**** Ordering of messages ****/
-				Message responseObj = Message(CHAT,++seqNum, chatRoom[clientId].name + ":: " + messageSplit[1]);
+				++seqNum;
+				string chatMsg = chatRoom[clientId].name + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId) + to_string(seqNum);
+				Message responseObj = Message(CHAT,seqNum,chatMsg);
 				q.push(responseObj);
 			}
 			break;
@@ -120,12 +128,6 @@ void Leader::parseMessage(char *message, Id clientId) {
 			{
 				deleteUser(clientId);	
 			}	
-			break;
-		case HEARTBEAT:
-			{
-				// Format: 3%clientIp:clientPort
-				chatRoom[clientId].lastHbt = chrono::system_clock::now();
-			}
 			break;
 		default:
 			cout<<"Invalid chat code sent by participant"<<endl;
@@ -135,6 +137,8 @@ void Leader::parseMessage(char *message, Id clientId) {
 }
 
 void Leader:: deleteUser(Id clientId) {
+	if(chatRoom.find(clientId) == chatRoom.end())
+		return;
 	// Delete user from map, ackMap, heartBeatMap
 	string user = chatRoom[clientId].name;
 	chatRoom.erase(clientId);
@@ -147,8 +151,6 @@ void Leader:: deleteUser(Id clientId) {
 	response << clientId << "%NOTICE " << user << " left the chat or just crashed";
 	Message responseObj = Message(DELETE, ++seqNum, response.str());
 	q.push(responseObj);	
-	
-	
 }
 
 /*  Producer thread constantly listening to 
@@ -162,21 +164,16 @@ void Leader::producerTask(int fd) {
 	cout<<"[DEBUG] Producer thread started"<<endl;
 	#endif
 	while (true) {
-		struct sockaddr_in clientAdd;
-		socklen_t clientLen = sizeof(clientAdd);
-       	char readBuffer[500];
-        bzero(readBuffer, 501);
-		        
-        recvfrom(fd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
-		char clientIp[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &(clientAdd.sin_addr), clientIp, INET_ADDRSTRLEN);	
-		
+		// receive message with ACK
+		char readBuffer[500];
+		bzero(readBuffer, 501);
+        	Id clientId = receiveMessageWithAck(sockFd,ackSockFd,chatRoom, readBuffer);
+			
 		#ifdef DEBUG
-        	cout<<"[DEBUG] Received from " <<clientIp<<":"<<ntohs(clientAdd.sin_port)<<" - "<<readBuffer<<endl;
+        	cout<<"[DEBUG] Received from " <<clientId<<" - "<<readBuffer<<endl;
 		#endif
 
-        	// parseMessage(readBuffer,string(clientIp), ntohs(clientAdd.sin_port));
-		parseMessage(readBuffer, getId(clientAdd));
+		parseMessage(readBuffer, clientId);
 	}
 }
 
@@ -188,12 +185,11 @@ void Leader::consumerTask() {
 	cout<<"[DEBUG]Consumer thread started"<<endl;
 	#endif	
 	while(true) {
-		// TODO: wait for ACKs from everyone
 		Message m = q.pop();
-			
+		
 		// Multi-cast to everyone in the group 
 		map<Id, ChatRoomUser>::iterator it;
-        for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+        	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
 			stringstream msgStream;
 			msgStream << m.getType() << "%" << m.getMessage();
 			string msg = msgStream.str();
@@ -211,8 +207,24 @@ void Leader::consumerTask() {
 			inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
 			clientAdd.sin_port = htons(clientPort);
 			
-			sendMessageWithRetry(sockFd, msg.c_str(), clientAdd, ackSockFd, NUM_RETRY);
+			if( sendMessageWithRetry(sockFd, msg.c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
+				deleteUser(Id(clientIp, clientPort));
+		
 		}		
+		
+		// send dequeue request to client
+		vector<string> messageSplit;
+		string message = m.getMessage();
+		boost::split(messageSplit,message,boost::is_any_of("%"));
+		Id clientId = Id(messageSplit[2]);
+		struct sockaddr_in clientAdd;
+                bzero((char *) &clientAdd, sizeof(clientAdd));
+               	clientAdd.sin_family = AF_INET;
+                inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
+		clientAdd.sin_port = htons(clientId.port);
+		if(sendMessageWithRetry(sockFd, to_string(DEQUEUE).c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
+			deleteUser(clientId);
+		
 	}	
 }
 
@@ -243,9 +255,36 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 // to send recieve heartbeats, detect failures
 void Leader::heartbeatSender(){
 	while(true){	
-			
+		// multi-cast heartbeat
+		map<Id, ChatRoomUser>::iterator it;
+                for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+			struct sockaddr_in clientAdd;
+        		bzero((char *) &clientAdd, sizeof(clientAdd));
+	        	clientAdd.sin_family = AF_INET;
+			// fetch client's heartbeat details
+			string clientIp = it->first.ip;
+			int heartbeatPort = it->second.heartbeatPort;
+        		inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
+        		clientAdd.sin_port = htons(heartbeatPort);
+			sendMessage(heartbeatSockFd, to_string(HEARTBEAT),clientAdd);	
+		}		 			
 		// thread sleep
 		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));		
+	}
+}
+
+void Leader::heartbeatReceiver() {
+	struct sockaddr_in clientTemp;
+	socklen_t clientTempLen = sizeof(clientTemp);
+	while(true) {
+		char readBuffer[500];
+		bzero(readBuffer,501);
+		receiveMessage(heartbeatSockFd,&clientTemp, &clientTempLen, readBuffer);
+		// spliting the encoded message
+	        vector<string> messageSplit;
+        	boost::split(messageSplit,readBuffer,boost::is_any_of("%"));
+		Id clientId = Id(messageSplit[1]);
+		chatRoom[clientId].lastHbt = chrono::system_clock::now();		 		
 	}
 }
 

@@ -2,17 +2,16 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include <netinet/in.h> 
-#include <string.h> 
+#include <string> 
 #include <arpa/inet.h>
 #include <string>
 #include<iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include "globals.h"
 #define MIN_PORTNO 2000
 #define MAX_PORTNO 50000
-
+#include "globals.h"
 
 using namespace std;
 
@@ -106,10 +105,10 @@ Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, 
 
         // spliting the encoded message
         vector<string> messageSplit;
-        boost::split(messageSplit,message,boost::is_any_of("%"));
-        int msgId = to_integer(messageSplit[1]);
+        boost::split(messageSplit, buffer, boost::is_any_of("%"));
+        int msgId = stoi(messageSplit[1]);
 
-        Id clientId = getId(addr);
+        Id clientId = getId(clientAdd);
         int ackPort = chatRoom[clientId].ackPort;
         #ifdef DEBUG
         cout<<"[DEBUG]Received: "<<buffer<<endl;
@@ -189,14 +188,14 @@ int sendMessageWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, in
 	char readBuffer[500];
 	bzero(readBuffer, 501);
 	struct timeval timeout={ TIMEOUT_RETRY, 0}; //set timeout for 2 seconds
-	setsockopt(recvFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
+	setsockopt(ackFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
 	int recvLen = recvfrom(ackFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
 	// Message Receive Timeout or other error. Resend Message
 	if (recvLen <= 0) {
 		#ifdef DEBUG
 		cout<<"[DEBUG] Sending "<<msg<<" failed";
 		#endif 
-		sendMessageWithRetry(sendFd, msg, clientAdd, recvFd, numRetry - 1);
+		sendMessageWithRetry(sendFd, msg, clientAdd, ackFd, numRetry - 1);
 	}
 	return result;
 }

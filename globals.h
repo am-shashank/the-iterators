@@ -24,14 +24,14 @@
 #define LIST_OF_USERS 5
 #define ACK 6
 #define CHAT 100
+#define ADD_USER 8
+#define DEQUEUE 99
 // threshold for heart-beat in milliseconds
-#define HEARTBEAT_THRESHOLD 10
-
+#define HEARTBEAT_THRESHOLD 4000 // frequencey at which heart beats are sent in milli seconds 
 #define NUM_RETRY 3 // Number of retries for message
 #define TIMEOUT_RETRY 5 // Timeout for retrying sending of messages ***in seconds***
 #define IS_LEADER 0 // 0 indicates - client, 1 - indicates Leader
-#define HEARTBEAT_THRESHOLD 10 // threshold for heart-beat
-
+#define NODE_DEAD -100
 
 using namespace std;
 class Message
@@ -82,23 +82,6 @@ class ClientQueue
 	
 };
 
-
-class Id {
-	public:
-		string ip;
-		int port;
-		Id(string ip1, int port1); 
-		Id(string IpPort);
-		bool operator <(const Id &id2) const;
-		friend ostream& operator<<(ostream& o, const Id &obj) {  
-        		o<<obj.ip<<":"<<obj.port;
-			return o;
-		}	
-
-};
-Id getId(struct sockaddr_in clientAdd);
-
-
 /*
 	Maintain all the information about the chatroom user
 */
@@ -115,6 +98,24 @@ class ChatRoomUser {
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
 };
 
+class Id {
+	public:
+		string ip;
+		int port;
+		Id(string ip1, int port1); 
+		Id(string IpPort);
+		bool operator <(const Id &id2) const;
+		friend ostream& operator<<(ostream& o, const Id &obj) {  
+        		o<<obj.ip<<":"<<obj.port;
+			return o;
+		}	
+
+};
+Id getId(struct sockaddr_in clientAdd);
+Id receiveMessageWithAck(int sockFd, int ackFd, map<Id, ChatRoomUser> chatRoom, char* buffer);
+
+
+
 class Leader : public ChatRoomUser
 {
 	int seqNum;   // global sequence number for ordering of messages
@@ -125,6 +126,7 @@ class Leader : public ChatRoomUser
 	
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
+	map<Id, int> lastSeenMsgIdMap;
 
 	public:
 		Leader(string leaderName); 
@@ -140,10 +142,11 @@ class Leader : public ChatRoomUser
 		void sendListUsers(string clientIp, int clientPort);
 		// to send recieve heartbeats, detect failures
 		void heartbeatSender();
-		// void heartbeatReciever();
+		void heartbeatReceiver();
 		void detectClientFaliure();
 		// delete the user if he exits/ crashes
 		void deleteUser(Id clientId);
+		// receive a message and send an ack with the message id
 };
 
 class Client
