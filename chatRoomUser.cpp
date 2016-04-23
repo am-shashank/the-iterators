@@ -11,3 +11,10 @@ ChatRoomUser:: ChatRoomUser(string name, string ip, int port, int ackPort, int h
 	
 ChatRoomUser:: ChatRoomUser()
 {}
+
+ChatRoomUser:: ChatRoomUser(string name,int ackPort,int heartbeatPort)
+{
+	this->name = name;
+	this->ackPort = ackPort;
+	this->heartbeatPort = heartbeatPort;
+}

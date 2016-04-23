@@ -25,6 +25,7 @@
 #define LIST_OF_USERS 5
 #define ACK 6
 #define ELECTION 7
+#define ADD_USER 8
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
@@ -118,6 +119,7 @@ class ChatRoomUser {
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
 		
 	ChatRoomUser();
+	ChatRoomUser(string name,int ackPort,int heartbeatPort);
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
 };
 
@@ -159,8 +161,8 @@ class Client
         string userName;
         char* leaderIp;
         int leaderPort;
-	int leaderAckPort;
-	int leaderHeartBeatPort;
+	//int leaderAckPort;
+	//int leaderHeartBeatPort;
 	int clientPort;
 	int heartBeatPort;
 	int ackPort;
@@ -181,7 +183,7 @@ class Client
         socklen_t clientAddressLength;
 
 	// hash map to store list of active users       
-        map<string,string> chatRoom;
+        map<Id,ChatRoomUser> chatRoom;
 
 	// objects for blocking queue for client
         ClientQueue q;
@@ -190,7 +192,7 @@ class Client
         Client(string name,string leaderIpPort);
         int establishConnection();
 	void setupClientPorts();
-	void setupLeaderPorts(int lAckPort,int ackPort);
+	void setupLeaderPorts(int lAckPort,int heartbeatPort);
 	void setLeaderAttributes(char* ip, int port);
         int joinNetwork(int portNo,string localIp);
 	void sender();
@@ -199,7 +201,7 @@ class Client
 	void sendHeartbeat();
 	void detectLeaderFailure();
 	void exitChatroom();	
-
+	void sendAck(string msg);
 		
 };
 
