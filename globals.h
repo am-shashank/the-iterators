@@ -100,6 +100,7 @@ class ChatRoomUser {
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
 		
 	ChatRoomUser();
+	ChatRoomUser(string name, int ackPort, int heartbeatPort);
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
 };
 
@@ -131,7 +132,8 @@ class Leader : public ChatRoomUser
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
 	map<Id, int> lastSeenMsgIdMap;
-
+	
+	int msgId; // message id for leader
 	public:
 		Leader(string leaderName); 
 		void startServer();
@@ -150,6 +152,8 @@ class Leader : public ChatRoomUser
 		void detectClientFaliure();
 		// delete the user if he exits/ crashes
 		void deleteUser(Id clientId);
+		// send message from leader to chatroom
+		void sender();
 		// receive a message and send an ack with the message id
 };
 

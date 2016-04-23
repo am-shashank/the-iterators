@@ -27,13 +27,18 @@ void Leader :: startServer(){
     sock.sin_addr.s_addr = INADDR_ANY;
     port = generatePortNumber(sockFd, sock); 
 
+    #ifdef DEBUG
+    cout<<"[DEBUG] after starting server "<<endl;
+    #endif
     printStartMessage();
 	
     // Start producer and consumer threads
     thread prod(&Leader::producerTask, this, sockFd);
     thread con(&Leader::consumerTask, this);	
-    prod.join();
-    con.join();	
+    
+    // start sender thread
+    thread senderThread(&Leader::sender, this);
+    	
 
     // create heartbeat socket
     heartbeatSockFd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -46,16 +51,21 @@ void Leader :: startServer(){
     thread heartbeatSend(&Leader::heartbeatSender, this);
     thread heartbeatRecv(&Leader::heartbeatReceiver, this);
     thread detectFailure(&Leader::detectClientFaliure, this);
-    heartbeatSend.join();
-    heartbeatRecv.join();
-    detectFailure.join();
-	
+
     // create ACK socket
     ackSockFd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero((char*) &ackSock, sizeof(ackSock));
     ackSock.sin_family = AF_INET;
     ackSock.sin_addr.s_addr = INADDR_ANY;
     ackPort = generatePortNumber(ackSockFd, ackSock);
+    
+    heartbeatSend.join();
+    heartbeatRecv.join();
+    detectFailure.join();
+    senderThread.join();	
+    prod.join();
+    con.join();
+ 
 }
 
 /*  Print welcome message on start of UDP server
@@ -307,5 +317,31 @@ void Leader::detectClientFaliure(){
 		}
 		// thread sleep
 		this_thread::sleep_for(std::chrono::milliseconds(HEARTBEAT_THRESHOLD));
+	}
+}
+
+void Leader::sender() {
+	/* sender should take input from console and send it to the leader 
+        along with pushing the message in the blocking Queue*/
+        char msgBuffer[500];
+
+        while(true)
+        {
+                bzero(msgBuffer,501);
+                cin.getline(msgBuffer, sizeof(msgBuffer));
+		// send the message to the leader
+                string msg = string(msgBuffer);
+                stringstream tempStr;
+                msgId = msgId+1;
+                tempStr<<CHAT<<"%"<<msg<<"%"<<msgId;
+                string finalMsg = tempStr.str();
+		int sendResult = sendMessageWithRetry(sockFd,finalMsg,sock,ackSockFd,NUM_RETRY);
+                if(sendResult == -1)
+                {
+                        #ifdef DEBUG
+                        cout<<"[DEBUG]message could not be sent to the leader"<<endl;
+                        #endif
+                }
+
 	}
 }
