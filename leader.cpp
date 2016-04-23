@@ -124,8 +124,8 @@ void Leader::parseMessage(char *message, Id clientId) {
 				
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << user << "%" << ip << ":" << port << "%" << ackPort <<"%" << heartbeatPort;
-				Message responseObj = Message(ADD_USER, ++seqNum, response.str());
+				response << user << "%" << ip << ":" << port << "%" << ackPort <<"%" << heartbeatPort << "%" << ++seqNum;
+				Message responseObj = Message(ADD_USER, seqNum, response.str());
 				q.push(responseObj);		
 			}			
 			break;
@@ -175,8 +175,8 @@ void Leader:: deleteUser(Id clientId) {
 	#endif
 	// add NOTICE message to Queue	
 	stringstream response;	
-	response << clientId << "%NOTICE " << user << " left the chat or just crashed";
-	Message responseObj = Message(DELETE, ++seqNum, response.str());
+	response << clientId << "%NOTICE " << user << " left the chat or just crashed"<<"%"<<++seqNum;
+	Message responseObj = Message(DELETE, seqNum, response.str());
 	q.push(responseObj);	
 }
 

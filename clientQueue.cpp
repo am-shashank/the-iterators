@@ -19,4 +19,8 @@ Message ClientQueue::pop()
         clientQueue.pop();
         return item;
 }
+int ClientQueue :: size()
+{
+	return clientQueue.size();
+}
 

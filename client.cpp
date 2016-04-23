@@ -28,11 +28,13 @@ Client :: Client(string name,string leaderIpPort)
 	userName = name;
 	isLeader = false;
 	msgId=0;
+	iAmDead = false;
 	lastSeenSequenceNum = 0;
 	isOk = false;
 	leaderFound = false;
 	isElection = false;
 	isRecovery = false;
+	isRecoveryDone = false;
 	vector<string> ipPortStr;
 	boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
 	leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -351,8 +353,21 @@ void Client :: sender()
 	// TODO : sender does not send messages if elections have started and isRecovery = true : ******DONE********
 	while(true)
 	{
+		if(iAmDead)
+		{
+			//TODO terminate the thread
+			terminate();
+		}
 		
-		
+		if(isRecoveryDone)
+		{
+			// iterate over the send queue and send all the messages to the leader
+			//calculate size of the queue
+			//perform recovery
+			thread sendRecoveryMsgs(&Client::performRecovery,this);
+			sendRecoveryMsgs.join();
+			
+		}		
 		bzero(msgBuffer,501);
 		cin.getline(msgBuffer, sizeof(msgBuffer));	
 		if(cin.eof())
@@ -375,7 +390,7 @@ void Client :: sender()
                 q.push(m);
 		
 		// send message to the leader only if no elections are being held and new leader is not recovering information
-		if(!isElection && !isRecovery)
+		if(!isElection && !isRecovery && !isRecoveryDone)
 		{
 			int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
 			#ifdef DEBUG
@@ -402,7 +417,32 @@ void Client :: sender()
 		
 	}
 }
-
+void Client ::performRecovery()
+{
+		// iterate over the send queue and send all the messages to the leader
+                        //calculate size of the queue
+                        int size = q.size();
+                        for(int i=0;i<size;i++)
+                        {
+                                Message m = q.pop();
+                                string msg = m.getMessage();
+                                int msgId = m.getMessageId();
+                                stringstream tempMsg; tempMsg<<CHAT<<"%"<<msg<<"%"<<msgId;
+                                string finalMsg = tempMsg.str();
+                                int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
+                                #ifdef DEBUG
+                                //cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
+                                #endif
+                                if(sendResult == -1)
+                                {
+                                        #ifdef DEBUG
+                                        cout<<"[DEBUG]message could not be sent to the leader"<<endl;
+                                        #endif
+                                }
+                                q.push(m);
+                        }
+			isRecoveryDone = false;	
+}
 void Client :: receiver()
 {
 	struct sockaddr_in clientTemp;
@@ -418,7 +458,7 @@ void Client :: receiver()
 		//struct sockaddr_in clientTemp;
 	        //socklen_t clientTempLen = sizeof(clientTemp);
 		//socklen_t len = sizeof(clientAddress);
-
+	
 		char readBuffer[500];
 		bzero(readBuffer,501);
 		
@@ -443,7 +483,14 @@ void Client :: receiver()
 			ite = msgSplit.begin();
 			ite++;
 			int code = atoi(msgSplit[0].c_str());
-			if(code == CHAT)
+			if(code == IAMDEAD)
+			{
+				// terminate thread
+				iAmDead = true;
+				terminate();
+			}
+			
+			else if(code == CHAT)
 			{
 				/*
 				for(;ite!= msgSplit.end();ite++)
@@ -458,15 +505,16 @@ void Client :: receiver()
 				// send acknowledgements
 				sendAck(ackMsg);
 
-				lastSeenMsg = msgSplit[1];
+				//lastSeenMsg = msgSplit[1];
 				string ipPort = msgSplit[2];
 				int mid = atoi(msgSplit[3].c_str());
 				int currentSequenceNum = atoi(msgSplit[4].c_str());
 				
 				if(currentSequenceNum >  lastSeenSequenceNum)
 				{
+					lastSeenMsg = string(readBuffer);
 					lastSeenSequenceNum = currentSequenceNum;
-					cout<<lastSeenMsg<<endl;		
+					cout<<msgSplit[1]<<endl;		
 				}
 			}
 			else if(code == JOIN)
@@ -523,8 +571,11 @@ void Client :: receiver()
 				//send acknowledgement first
 				sendAck(to_string(ACK));
 
+			
+
 				//remove that user's entry from chatRoom
 				string key = msgSplit[1];
+					
 				//map<string,string> :: iterator mite;
 				//mite = chatRoom.find(key);
 				if(chatRoom.find(key) != chatRoom.end())
@@ -534,7 +585,14 @@ void Client :: receiver()
 				#ifdef DEBUG
 				cout <<"[DEBUG]user deleted from the map"<<endl;
 				#endif
-				cout<<msgSplit[2]<<endl;		
+				int currentSequenceNum = atoi(msgSplit[3].c_str());
+
+                                if(currentSequenceNum >  lastSeenSequenceNum)
+                                {
+                                        lastSeenMsg = string(readBuffer);
+                                        lastSeenSequenceNum = currentSequenceNum;
+                                        cout<<msgSplit[2]<<endl;		
+                                }
 			}
 			else if(code == DEQUEUE)
 			{
@@ -622,16 +680,26 @@ void Client :: receiver()
 				// TODO set isRecovery = false: ****DONE****
 				
 				isRecovery = false;
-
+				isRecoveryDone = true;
+				isElection = false;
 				// send acknowledgement to the user
 				sendAck(to_string(ACK));
+
 			}		
 			else if(code == ADD_USER)
 			{
 				// send acknowledgement to the leader
 				sendAck(to_string(ACK));
-				// print the message on the screen
-				cout<<"NOTICE "<<msgSplit[1]<<" joined on "<<msgSplit[2]<<endl;
+				int currentSequenceNum = atoi(msgSplit[5].c_str());
+
+                                if(currentSequenceNum >  lastSeenSequenceNum)
+                                {
+                                        lastSeenMsg = string(readBuffer);
+                                        lastSeenSequenceNum = currentSequenceNum;
+					// print the message on the screen
+					cout<<"NOTICE "<<msgSplit[1]<<" joined on "<<msgSplit[2]<<endl;
+	
+                                }
 				// add the new user's information in the map
 				Id idObj(msgSplit[2]);
 				ChatRoomUser userObj(msgSplit[1],atoi(msgSplit[3].c_str()),atoi(msgSplit[4].c_str()));
@@ -721,8 +789,10 @@ void Client:: startElection()
 		map<Id, ChatRoomUser>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++)
                 {
+				/*
 				if((it->first.ip.compare(clientIp)==0) && (it->first.port == clientPort) )
 					continue;
+				*/
                 		string ip = it->first.ip;
                         	int port = it->first.port;
 
@@ -756,8 +826,9 @@ void Client:: startElection()
 		
 		// TODO take care of all the previous client threads
 		
-		// creating a new leader object: *****DONE******
-		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort,chatRoom);		
+		// creating a new leader object: *****DONE******	
+		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort,chatRoom);
+		//TODO terminate other client threads.		
 	}
 }
 
@@ -840,16 +911,24 @@ void Client :: sendHeartbeat()
         tempStr<<HEARTBEAT<<"%"<<clientIp<<":"<<clientPort;
         string finalMsg = tempStr.str();
 	// send heart beats only if the elections are not being held
-	while(!isElection)
+	while(true)
 	{
-        	int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
-		if(sendResult == -1)
+		if(iAmDead)
 		{
-			#ifdef DEBUG
-			cout<<"[DEBUG]failed to send heartbeat to the leader"<<endl;
-			#endif
+			terminate();
 		}
-		this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));
+		if(!isElection)
+		{
+        		int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
+			if(sendResult == -1)
+			{
+				#ifdef DEBUG
+				cout<<"[DEBUG]failed to send heartbeat to the leader"<<endl;
+				#endif
+			
+			}
+			this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));
+		}
 	}
 }
 // TODO : if elections terminate detectLeaderFailure : ******DONE******
@@ -859,37 +938,44 @@ void Client :: detectLeaderFailure()
 	struct sockaddr_in clientTemp;
         socklen_t clientTempLen = sizeof(clientTemp);
 	// receive the heart beats and detect for failure of the leader only if no elections are being held
-	while(!isElection)
+	while(true)
 	{
-		struct pollfd myPollFd;
-		myPollFd.fd = heartBeatFd;
-		myPollFd.events = POLLIN;
-		int result = poll(&myPollFd,1,3*HEARTBEAT_THRESHOLD);
-		int receivedMessage = 0;
-		if(result == -1)
+		if(iAmDead)
 		{
-			#ifdef DEBUG
-			cout<<"[DEBUG]error in socket timeout"<<endl;
-			#endif
+			terminate();
 		}
-		else if(result == 0)
+		if(!isElection)
 		{
-			// socket timeout
-			#ifdef DEBUG
-                        cout<<"[DEBUG]no heart beat received from the leader... leader failed"<<endl;
-                        #endif
-                        // TODO : start elections since the leader failed: *****DONE******
-			if(!isElection)
+			struct pollfd myPollFd;
+			myPollFd.fd = heartBeatFd;
+			myPollFd.events = POLLIN;
+			int result = poll(&myPollFd,1,3*HEARTBEAT_THRESHOLD);
+			int receivedMessage = 0;
+			if(result == -1)
 			{
-				thread electionThread(&Client::startElection,this);
-				electionThread.join();
-			} 
-		}
-		else
-		{
-			char readBuffer[500];
-	                bzero(readBuffer,501);
-        	        int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
+				#ifdef DEBUG
+				cout<<"[DEBUG]error in socket timeout"<<endl;
+				#endif
+			}
+			else if(result == 0)
+			{
+				// socket timeout
+				#ifdef DEBUG
+                        	cout<<"[DEBUG]no heart beat received from the leader... leader failed"<<endl;
+                        	#endif
+                        	// TODO : start elections since the leader failed: *****DONE******
+				if(!isElection)
+				{
+					thread electionThread(&Client::startElection,this);
+					electionThread.join();
+				} 
+			}
+			else
+			{
+				char readBuffer[500];
+	                	bzero(readBuffer,501);
+        	        	int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
+			}
 		}
 
 	}				

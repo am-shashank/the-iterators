@@ -29,6 +29,7 @@
 #define LEADER 9
 #define RECOVERY 11
 #define CLOSE_RECOVERY 12
+#define IAMDEAD 13
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
@@ -87,7 +88,7 @@ class ClientQueue
 
 	void push(const Message &m);
 	Message pop();
-	
+	int size();	
 };
 
 /*
@@ -192,6 +193,8 @@ class Client
 	bool isElection;
 	bool leaderFound;
 	bool isRecovery;
+	bool isRecoveryDone;
+	bool iAmDead;
 
         struct sockaddr_in leaderAddress,leaderAckAddress,leaderHeartBeatAddress,clientAddress, heartBeatAddress, ackAddress;
         socklen_t leaderAddressLength;
@@ -219,6 +222,7 @@ class Client
 	void sendAck(string msg);
 	// start elections
 	void startElection();
+	void performRecovery();
 		
 };
 
