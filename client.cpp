@@ -25,6 +25,9 @@ using namespace std;
 
 Client :: Client(string name,string leaderIpPort)
 {
+	#ifdef DEBUG
+	cout<<"Client Object created"<<endl;
+	#endif
 	userName = name;
 	isLeader = false;
 	msgId=0;
@@ -408,6 +411,7 @@ void Client :: sender()
 				//TODO: perform elections : *******DONE********
 				if(!isElection)
 				{
+							
 					thread electionThread(&Client::startElection,this);
 					electionThread.join();
 				}
@@ -606,7 +610,10 @@ void Client :: receiver()
 			else if(code == ELECTION)
 			{
 				// TODO : send ack to the sender : ******DONE*********
-
+				
+				#ifdef DEBUG
+				cout<<"[DEBUG]election message received"<<endl;
+				#endif
 				Id idObj = getId(clientTemp);
                                 int aPort = chatRoom[idObj].ackPort;
 
@@ -617,11 +624,15 @@ void Client :: receiver()
                                 inet_pton(AF_INET,idObj.ip.c_str(),&(tempAddr.sin_addr));
                                 tempAddr.sin_port = htons(aPort);
                                 int sendResult = sendMessage(ackFd,to_string(ACK),tempAddr);
-	
+				#ifdef DEBUG
+				cout<<"[DEBUG]ACK sent for election message "<<endl;
+				#endif
+				
 				// TODO : set election if election has not been called : *******DONE*********
 				if(!isElection)
 				{
 					// if election did not start yet, start elections
+					
 					thread electionThread(&Client::startElection,this);
 					electionThread.join();
 				}
@@ -629,6 +640,9 @@ void Client :: receiver()
 			}
 			else if(code == LEADER)
 			{
+				#ifdef DEBUG
+				cout<<"[DEBUG]received leader message from the new leader"<<endl;
+				#endif
 				// leader is found
 				leaderFound = true;
 				//set election to false
@@ -734,8 +748,13 @@ void Client :: sendAck(string msg)
 // start elections
 void Client:: startElection()
 {
+	#ifdef DEBUG
+	cout<<"[DEBUG]elections started"<<endl;
+	#endif
 	
 	isElection = true;
+	Id idObj(leaderIp,leaderPort);
+	chatRoom.erase(idObj);
 	
 	do
 	{
@@ -745,6 +764,10 @@ void Client:: startElection()
 		{
 			if(clientPort < it->first.port)
 			{
+				#ifdef DEBUG
+				cout<<"sending election message to higher ports"<<endl;
+				#endif
+
 				string ip = it->first.ip;
 				int port = it->first.port;
 
@@ -756,15 +779,19 @@ void Client:: startElection()
                                 tempAddr.sin_port = htons(port);
 				//send election message to the user
 				int sendResult = sendMessageWithRetry(clientFd,to_string(ELECTION),tempAddr,ackFd,NUM_RETRY);
-				if(sendResult != NODE_DEAD && sendResult>0)
+							
+				if(sendResult != NODE_DEAD && sendResult>=0)
 				{
 		
 					isOk = true;
+					#ifdef DEBUG
+                                	cout<<"[DEBUG]ACK received for election message"<<endl;
+                                	#endif
 				}
 		
 			}
 		}
-		// sleep for sometime to detect leader or receive OK message
+		// sleep Ifor sometime to detect leader or receive OK message
 		this_thread::sleep_for(chrono::milliseconds(3000));
 
 		//check if the leader was found or not		
@@ -785,7 +812,9 @@ void Client:: startElection()
 		// TODO leader has not been found so declare itself as leader and stop elections: ******DONE******
 	
 		// send broadcast messages to everyone in the map
-			
+		#ifdef DEBUG
+		cout<<"I am leader and my port number is\t"<<clientPort<<endl;
+		#endif			
 		map<Id, ChatRoomUser>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++)
                 {
@@ -813,6 +842,9 @@ void Client:: startElection()
 		}
 
 		isElection = false;
+		#ifdef DEBUG
+		cout<<"[DEBUG]leader message broadcasted to all other clients"<<endl;
+		#endif
 
 		// TODO create leader object: *****DONE*****	
 		//TODO create new leader constructor with name,ip,ports and chatroom map without your own : ******DONE*******
@@ -822,7 +854,7 @@ void Client:: startElection()
 		// remove this new leader from the map
 		Id obj(clientIp,clientPort);
 		ChatRoomUser clientUser = chatRoom[obj];
-		chatRoom.erase(obj);
+		//chatRoom.erase(obj);
 		
 		// TODO take care of all the previous client threads
 		
@@ -966,6 +998,7 @@ void Client :: detectLeaderFailure()
                         	// TODO : start elections since the leader failed: *****DONE******
 				if(!isElection)
 				{
+					
 					thread electionThread(&Client::startElection,this);
 					electionThread.join();
 				} 

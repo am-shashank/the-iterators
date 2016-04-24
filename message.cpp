@@ -6,10 +6,9 @@ Message :: Message(string message)
 {
 	buffer = message;
 }
-Message :: Message(int messageType,int seqNum,string message)
+Message :: Message(int messageType,string message, bool isType)
 {
 	type = messageType;
-	sequenceNumber = seqNum;
 	buffer = message;
 }
 Message :: Message(int messageId,string message)
@@ -24,10 +23,6 @@ int Message :: getType()
 int Message :: getMessageId()
 {
 	return msgId;
-}
-int Message :: getSequenceNumber()
-{
-	return sequenceNumber;
 }
 string Message :: getMessage()
 {

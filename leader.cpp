@@ -41,8 +41,8 @@ void Leader :: startServer(){
     #ifdef DEBUG
     cout<<"[DEBUG] after starting server "<<endl;
     #endif
-    printStartMessage();
-	
+    
+    printStartMessage();	
     // Start producer and consumer threads
     thread prod(&Leader::producerTask, this, sockFd);
     thread con(&Leader::consumerTask, this);	
@@ -69,7 +69,12 @@ void Leader :: startServer(){
     ackSock.sin_family = AF_INET;
     ackSock.sin_addr.s_addr = INADDR_ANY;
     ackPort = generatePortNumber(ackSockFd, ackSock);
-    
+
+    Id myId = Id(ip, port);
+
+    ChatRoomUser meMyselfI = ChatRoomUser(name, ip, port, ackPort, heartbeatPort);
+    chatRoom[myId] = meMyselfI;
+      
     heartbeatSend.join();
     heartbeatRecv.join();
     detectFailure.join();
@@ -77,6 +82,7 @@ void Leader :: startServer(){
     prod.join();
     con.join();
  
+
 }
 
 /*  Print welcome message on start of UDP server
@@ -85,16 +91,13 @@ void Leader::printStartMessage() {
 	cout<<name<<" started a new chat, listening on "<<ip<<":"<<port<<endl;
 	cout<<"Succeeded, current users:"<<endl;
 	cout<<name<<" "<<ip<<":"<<port<<"(Leader)"<<endl;
-	if(chatRoom.empty()) {
-		cout<<"Waiting for others to join..."<<endl;
-	}else{
-		map<Id, ChatRoomUser>::iterator it;
+	cout<<"Waiting for others to join..."<<endl;
+		/*map<Id, ChatRoomUser>::iterator it;
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
  		   	// iterator->first = key
 			// iterator->second = value
 			cout<<it->second.name<<" "<<it->first<<endl;
-		}	
-	}
+		}*/
 }
 
 /*   Parse the encoded message into a Message object
@@ -124,8 +127,8 @@ void Leader::parseMessage(char *message, Id clientId) {
 				
 				// add NOTICE message to Queue	
 				stringstream response;	
-				response << user << "%" << ip << ":" << port << "%" << ackPort <<"%" << heartbeatPort << "%" << ++seqNum;
-				Message responseObj = Message(ADD_USER, seqNum, response.str());
+				response << user << "%" << ip << ":" << port << "%" << ackPort <<"%" << heartbeatPort;
+				Message responseObj = Message(ADD_USER, response.str(), true);
 				q.push(responseObj);		
 			}			
 			break;
@@ -138,15 +141,13 @@ void Leader::parseMessage(char *message, Id clientId) {
 						break;
 				}
 				lastSeenMsgIdMap[clientId] = msgId;
-				/**** Ordering of messages ****/
-				++seqNum;
 				string senderName;
 				if(clientId.ip.compare(ip) == 0 && clientId.port == port)
 					senderName = name;
 				else
 					senderName = chatRoom[clientId].name;
-				string chatMsg = senderName + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId) + "%"+ to_string(seqNum);
-				Message responseObj = Message(CHAT,seqNum,chatMsg);
+				string chatMsg = senderName + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId);
+				Message responseObj = Message(CHAT,chatMsg, true);
 				q.push(responseObj);
 			}
 			break;
@@ -154,6 +155,7 @@ void Leader::parseMessage(char *message, Id clientId) {
 			deleteUser(clientId);	
 			break;
 		case DEQUEUE:
+			sendMessage(ackSockFd, to_string(ACK), ackSock);
 			sendQ.pop();
 			break;
 		default:
@@ -175,8 +177,8 @@ void Leader:: deleteUser(Id clientId) {
 	#endif
 	// add NOTICE message to Queue	
 	stringstream response;	
-	response << clientId << "%NOTICE " << user << " left the chat or just crashed"<<"%"<<++seqNum;
-	Message responseObj = Message(DELETE, seqNum, response.str());
+	response << clientId << "%NOTICE " << user << " left the chat or just crashed";
+	Message responseObj = Message(DELETE, response.str(), true);
 	q.push(responseObj);	
 }
 
@@ -217,8 +219,10 @@ void Leader::consumerTask() {
 		// Multi-cast to everyone in the group 
 		map<Id, ChatRoomUser>::iterator it;
         	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+			if(it->first.ip.compare(ip) == 0 && it->first.port == port)
+                                continue;
 			stringstream msgStream;
-			msgStream << m.getType() << "%" << m.getMessage();
+			msgStream << m.getType() << "%" << m.getMessage() << "%" << ++seqNum;
 			string msg = msgStream.str();
 			#ifdef DEBUG
 				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second.name<<"@"<<it->first<<endl;
@@ -266,6 +270,8 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 	stringstream ss;
 	ss << LIST_OF_USERS << "%" << name << "&" << ip << ":" << port <<" (Leader)"<< "&" << ackPort << "&" << heartbeatPort << "%";
 	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+		if(it->first.ip.compare(ip) == 0 && it->first.port == port)
+                                continue;
 		ss << it->second.name << "&" << it->first << "&" << it->second.ackPort << "&" << it->second.heartbeatPort << "%" ;		
 	}
 	
@@ -291,6 +297,8 @@ void Leader::heartbeatSender(){
 		// multi-cast heartbeat
 		map<Id, ChatRoomUser>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+			if(it->first.ip.compare(ip) == 0 && it->first.port == port)
+                                continue;
 			struct sockaddr_in clientAdd;
         		bzero((char *) &clientAdd, sizeof(clientAdd));
 	        	clientAdd.sin_family = AF_INET;
@@ -328,6 +336,8 @@ void Leader::detectClientFaliure(){
 		curTime = chrono::system_clock::now();
 		map<Id, ChatRoomUser>::iterator it;
 		for(it = chatRoom.begin(); it != chatRoom.end(); it++){
+			if(it->first.ip.compare(ip) == 0 && it->first.port == port)
+				continue;			
 			chrono::time_point<chrono::system_clock> beatTime = it->second.lastHbt;
 			chrono::duration<double> elapsedSeconds = curTime - beatTime;
 

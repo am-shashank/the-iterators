@@ -44,7 +44,7 @@ class Message
 {
 	private:
 	int type;
-	int sequenceNumber;
+	// int sequenceNumber;
 	string buffer;
 	int msgId;
 
@@ -52,9 +52,9 @@ class Message
 
 	Message(string message);	
 	Message(int messageId,string message);
-	Message(int messageType,int seqNum,string message);
+	Message(int messageType, string message, bool isType); // used by leader
 	int getType();
-	int getSequenceNumber();
+	// int getSequenceNumber();
 	int getMessageId();
 	string getMessage();
 	void setMessage(string message);
@@ -225,4 +225,11 @@ class Client
 	void performRecovery();
 		
 };
-
+class SubstitutionCipher{
+        private :
+                int offset = 10;
+        public:
+                int getOffset();
+                void encrypt(char* msg);
+                void decrypt(char* msg);
+};
