@@ -366,13 +366,16 @@ void Client :: sender()
 	// TODO : sender does not send messages if elections have started and isRecovery = true : ******DONE********
 	while(true)
 	{
-		if(iAmDead)
 		{
-			//TODO terminate the thread
-			#ifdef DEBUG
-			cout<<"[DEBUG]breaking from sender thread"<<endl;
-			#endif
-			break;
+			//lock_guard<mutex> guard(iAmDeadMutex);
+			if(iAmDead)
+			{
+				//TODO terminate the thread
+				#ifdef DEBUG
+				cout<<"[DEBUG]breaking from sender thread"<<endl;
+				#endif
+				break;
+			}
 		}
 		
 		if(isRecoveryDone)
@@ -397,8 +400,11 @@ void Client :: sender()
 				// checks for Control-D
 				exitChatroom();
 			}	
-		} else if(ret == 0 && iAmDead) 
-			break;
+		} else{
+			//lock_guard<mutex> guard(iAmDeadMutex);		
+			 if(ret == 0 && iAmDead)
+				break;
+		}
 		
 		// send the message to the leader
 		
@@ -422,7 +428,7 @@ void Client :: sender()
 			q.push(m);
 			
 			// send message to the leader only if no elections are being held and new leader is not recovering information
-			lock_guard<mutex> guard(isElectionMutex);
+			//lock_guard<mutex> guard(isElectionMutex);
 			if(!isElection && !isRecovery && !isRecoveryDone)
 			{
 				int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
@@ -521,6 +527,7 @@ void Client :: receiver()
 			if(code == IAMDEAD)
 			{
 				// terminate thread
+				// lock_guard<mutex> guard(iAmDeadMutex);
 				iAmDead = true;
 				//send acknowledgement
 				sendMessage(ackFd,to_string(ACK),ackAddress);			
@@ -668,6 +675,7 @@ void Client :: receiver()
 				#endif
 				
 				// TODO : set election if election has not been called : *******DONE*********
+				// lock_guard<mutex> guard(isElectionMutex);
 				if(!isElection)
 				{
 					// if election did not start yet, start elections
@@ -684,6 +692,7 @@ void Client :: receiver()
 				cout<<"[DEBUG]received leader message from the new leader"<<endl;
 				#endif
 				// leader is found
+				// lock_guard<mutex> guard(leaderFoundMutex);
 				leaderFound = true;
 				//set election to false
 				//isElection = false;
@@ -709,6 +718,7 @@ void Client :: receiver()
 				char *tempIp =const_cast<char*>(idObj.ip.c_str());
 				setLeaderAttributes(tempIp,idObj.port);
 				setupLeaderPorts(chatRoom[idObj].ackPort,chatRoom[idObj].heartbeatPort);
+				// lock_guard<mutex> guard1(isElectionMutex);
 				isElection = false;					
 			}
 			else if(code == RECOVERY)
@@ -792,7 +802,7 @@ void Client:: startElection()
 	#ifdef DEBUG
 	cout<<"[DEBUG]elections started"<<endl;
 	#endif
-	
+	// lock_guard<mutex> guard4(isElectionMutex);	
 	isElection = true;
 	Id idObj(leaderIp,leaderPort);
 	chatRoom.erase(idObj);
@@ -836,6 +846,7 @@ void Client:: startElection()
 		this_thread::sleep_for(chrono::milliseconds(3000));
 
 		//check if the leader was found or not		
+		// lock_guard<mutex> guard3(leaderFoundMutex);
 		if(leaderFound)
 		{
 			// found leader so stop election thread
@@ -848,6 +859,7 @@ void Client:: startElection()
 
 	}while(isOk);
 	
+	// lock_guard<mutex> guard2(leaderFoundMutex);
 	if(!leaderFound)
 	{
 		// TODO leader has not been found so declare itself as leader and stop elections: ******DONE******
@@ -998,6 +1010,7 @@ void Client :: sendHeartbeat()
 	// send heart beats only if the elections are not being held
 	while(true)
 	{
+		// lock_guard<mutex> guard7(iAmDeadMutex);
 		if(iAmDead)
 		{
 			#ifdef DEBUG
@@ -1005,6 +1018,7 @@ void Client :: sendHeartbeat()
 			#endif
 			break;
 		}
+		// lock_guard<mutex> guard6(isElectionMutex);
 		if(!isElection)
 		{
 			#ifdef DEBUG
@@ -1037,6 +1051,8 @@ void Client :: detectLeaderFailure()
 	// receive the heart beats and detect for failure of the leader only if no elections are being held
 	while(true)
 	{
+		// lock_guard<mutex> guard9(iAmDeadMutex);
+
 		if(iAmDead)
 		{
 			#ifdef DEBUG
@@ -1044,6 +1060,7 @@ void Client :: detectLeaderFailure()
                         #endif
 			break;
 		}
+		// lock_guard<mutex> guard8(isElectionMutex);
 		if(!isElection)
 		{
 			/*
