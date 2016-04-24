@@ -40,6 +40,23 @@
 #define NODE_DEAD -100
 
 using namespace std;
+/*class semaphore
+{
+	private:
+	    boost::mutex mutex_;
+	    boost::condition_variable condition_;
+	    unsigned long count_;
+
+	public:
+	    semaphore();
+	
+	    
+
+	    void notify();
+
+	    void wait();
+};
+*/
 class Message
 {
 	private:
@@ -134,7 +151,7 @@ class Leader : public ChatRoomUser
 	ClientQueue sendQ; // leader's client queue to send messages typed by him	
 	int sockFd, heartbeatSockFd, ackSockFd;
 	struct sockaddr_in sock, heartbeatSock, ackSock;
-	
+	bool isNewlyElected;	
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
 	map<Id, int> lastSeenMsgIdMap;
@@ -144,7 +161,8 @@ class Leader : public ChatRoomUser
 	int msgId; // message id for leader
 	public:
 		Leader(string leaderName);
-		Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> myMap, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> q ); 
+		Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> tempQ);
+		//Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> myMap, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> q ); 
 		void startServer();
 		void printStartMessage();
 		// Thread task to listen for messages in chatroom from participants
@@ -204,10 +222,8 @@ class Client
 
 	// heartbeat multiplier
 	int multiplier;
-	mutex isElectionMutex;
-	mutex leaderFoundMutex;
-	mutex iAmDeadMutex;
 
+		
         struct sockaddr_in leaderAddress,leaderAckAddress,leaderHeartBeatAddress,clientAddress, heartBeatAddress, ackAddress;
         socklen_t leaderAddressLength;
         socklen_t clientAddressLength;
@@ -218,7 +234,22 @@ class Client
 	// objects for blocking queue for client
         ClientQueue q;
 
+	// client threads
+
+	//thread heartBeatPing;//(&Client::sendHeartbeat,this);
+        //thread detectFailure;//(&Client::detectLeaderFailure,this);
+        //thread sendMsg;//(&Client:: sender, this);
+        //thread receiveMsg;//(&Client:: receiver, this);
+
+
         public:
+
+
+	/*semaphore senderSem;
+	semaphore receiverSem;
+	semaphore sendHeartBeatSem;
+	semaphore detectLeaderFailureSem;
+	*/
         Client(string name,string leaderIpPort);
         int establishConnection();
 	void setupClientPorts();
