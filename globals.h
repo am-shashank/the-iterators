@@ -137,11 +137,13 @@ class Leader : public ChatRoomUser
 	// map of users ip and names in chat room
 	map<Id, ChatRoomUser> chatRoom;
 	map<Id, int> lastSeenMsgIdMap;
-	
+
+	bool isRecovery; // flag indicating the sender thread to stop sending messages but start heartbeats
+	bool isRecoveryDone; // flag indicating that the last sequence message has been set and clients can bombard backup buffers	
 	int msgId; // message id for leader
 	public:
 		Leader(string leaderName);
-		Leader(string name,string ip,int port,int ackPort,int heartbeatPort,map<Id,ChatRoomUser> myMap); 
+		Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> myMap, string lastSeenMsg, int lastSeenSequenceNum, ClienQueue q ); 
 		void startServer();
 		void printStartMessage();
 		// Thread task to listen for messages in chatroom from participants
@@ -160,7 +162,9 @@ class Leader : public ChatRoomUser
 		void deleteUser(Id clientId);
 		// send message from leader to chatroom
 		void sender();
-		// receive a message and send an ack with the message id
+		// send a recovery message and receive the lastSeenSeqNum and lastSeenMsg and update the same 
+		int sendRecoveryWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry, int &lastSeenSeqNum, string &lastSeenMsg)
+
 };
 
 class Client

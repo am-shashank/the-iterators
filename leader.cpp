@@ -16,16 +16,94 @@ Leader :: Leader(string leaderName) {
 	name = leaderName;
 	ip = getIp();
 	startServer();	
+	isRecovery = false;
+	isRecoveryDone = false;
 }
-Leader ::Leader(string name,string ip,int port,int ackPort,int heartbeatPort,map<Id,ChatRoomUser> myMap)
+Leader ::Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> chatRoom, string lastSeenMsg, int lastSeenSequenceNum, ClienQueue q )
 {
+	msgId = 0;	
 	this->name = name;
+	this->ip = ip;
+
 	this->port = port;
 	this->ackPort = ackPort;
-	this->heartbeatPort = heartbeatPort;
-	chatRoom = myMap;
+	this->heartbeatPort = heartbeatPort;	
+	this->sock = sock;
+	this->ackSock = ackSock;
+	this->heartbeatSock = heartbeatSock;
+	this->sockFd = sockFd;
+	this->ackFd = ackFd;
+	this->heartbeatFd = heartbeatFd;
+	
+	
+	this->chatRoom = chatRoom;
+	
+	int minSeqNum = lastSeenSequenceNum;
+	int maxSeqNum = lastSeenSequenceNum;
+	string msgToDeliver = lastSeenMsg;
 
-	// TODO proceed with the recovery messages	
+	this->clientQueue = q;
+
+	// send a message to old client indicating him to terminate
+	sendMessage(sockFd, to_string(IAMDEAD), sock);
+
+	isRecovery = true;
+	
+	// start all threads
+    
+    	// start sender thread : TODO ensure that cin is available and sending is not happening
+    	thread senderThread(&Leader::sender, this).detach();;
+	
+	// Start heartbeat threads
+    	thread heartbeatSend(&Leader::heartbeatSender, this).detach();;
+    	thread heartbeatRecv(&Leader::heartbeatReceiver, this).detach();;
+    	thread detectFailure(&Leader::detectClientFaliure, this).detach();;
+	
+	
+	
+	
+	map<Id, ChatRoomUser>::iterator it;
+        for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
+		Id clientId = it->first;
+		
+		int tempInt;
+		string tempStr;
+		/* set socket attributes for participant */
+		struct sockaddr_in clientAdd;
+		bzero((char *) &clientAdd, sizeof(clientAdd));
+		clientAdd.sin_family = AF_INET;
+		inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
+		clientAdd.sin_port = htons(clientId.port);
+
+		sendRecoveryWithRetry(sockFd, to_string(RECOVERY), clientAdd, ackFd, NUM_RETRY, tempInt, tempStr);	
+		// update min, max, msg
+		if(tempInt > maxSeqNum) {
+			maxSeqNum = tempInt;
+			msgToDeliver = tempStr;
+		}
+		if(tempInt < minSeqNum)
+			minSeqNum = tempInt;
+	}
+	seqNum = maxSeqNum;	
+	// broadcast unsynchronized message in a loop
+
+	// start producer, consumer threads
+	// enqueue CLOSE_RECOVERY
+
+	if(minSeqNum != maxSeqNum) { 
+		// add msgToDeliver
+		vector<string> messageSplit;
+	        boost::split(messageSplit,msgToDeiver,boost::is_any_of("%"));
+		int msgType = atoi(messageSplit[0].c_str());
+		int curSeqNum = atoi(messageSplit[messageSplit.size() - 1].c_str());
+		string formattedMsgToDeliver = "";
+		for(int i=1; i < messageSplit.size(); i++)
+			formattedMsgToDeliver += formattedMsgToDeliver + messageSplit[i];
+		q.push(Message(msgType, curSeqNum, formattedMsgToDeliver);
+		
+	}
+	// send closeRecovery to all nodes including myself. TODO: add CLOSE_RECOVERY in  	
+		
 }
 /* Start UDP server on a random unused port number 
    and invoke the producer and consumer threads
@@ -381,3 +459,46 @@ void Leader::sender() {
 
 	}
 }
+
+
+
+int Leader::sendRecoveryWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry, int &lastSeenSeqNum, string &lastSeenMsg)
+{
+        if(numRetry == 0)
+                return NODE_DEAD;
+
+        char writeBuffer[500];
+        bzero(writeBuffer,501);
+        socklen_t len = sizeof(addr);
+        strncpy(writeBuffer,msg.c_str(),sizeof(writeBuffer));
+
+        int result = sendto(sendFd,writeBuffer,strlen(writeBuffer),0,(struct sockaddr *)&addr,len);
+
+        // wait for ACK with timeout
+        struct sockaddr_in clientAdd;
+        socklen_t clientLen = sizeof(clientAdd);
+        char readBuffer[500];
+        bzero(readBuffer, 501);
+        struct timeval timeout={ TIMEOUT_RETRY, 0}; //set timeout for 2 seconds
+        setsockopt(ackFd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
+        int recvLen = recvfrom(ackFd, readBuffer, 500, 0, (struct sockaddr *) &clientAdd, &clientLen);
+        // Message Receive Timeout or other error. Resend Message
+        if (recvLen <= 0) {
+                #ifdef DEBUG
+                cout<<"[DEBUG] Retrying "<<msg<<endl;
+                #endif
+                sendRecoveryWithRetry(sendFd, msg, clientAdd, ackFd, numRetry - 1);
+        }else {
+		string recoveryMsg = string(readBuffer);
+                #ifdef DEBUG
+                cout<<"[DEBUG] RECOVERY received "<<recoveryMsg<<endl;
+                #endif
+		// spliting the encoded message
+	        vector<string> messageSplit;
+        	boost::split(messageSplit, recoveryMsg, boost::is_any_of("%"));
+		lastSeenSeqNum = atoi(messageSplit[1].c_str());
+		lastSeenMsg = messageSplit[2].c_str();
+        }
+        return result;
+}
+

@@ -827,7 +827,7 @@ void Client:: startElection()
 		// TODO take care of all the previous client threads
 		
 		// creating a new leader object: *****DONE******	
-		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort,chatRoom);
+		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort, clientAddress, heartBeatAddress, ackAddress, clientFd, ackFd, heartBeatFd, chatRoom, lastSeenMsg, lastSeenSequenceNum, q);
 		//TODO terminate other client threads.		
 	}
 }
