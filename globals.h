@@ -8,7 +8,7 @@
 #include <vector>
 #include <boost/algorithm/string.hpp>
 #include<map>
-
+#include<mutex>
 // For implementing Blocking Priority Queue
 #include <queue>
 #include <thread>
@@ -72,6 +72,7 @@ class BlockingPQueue
 	public:
 		void push(const Message &m);
 		Message pop();
+		int size();
 
 };
 
@@ -139,11 +140,11 @@ class Leader : public ChatRoomUser
 	map<Id, int> lastSeenMsgIdMap;
 
 	bool isRecovery; // flag indicating the sender thread to stop sending messages but start heartbeats
-	bool isRecoveryDone; // flag indicating that the last sequence message has been set and clients can bombard backup buffers	
+	bool isRecoveryDone; // flag indicating that the last sequence message has been broadcasted, CLOSE_RECOVERY is queued and server can bombard backup buffers	
 	int msgId; // message id for leader
 	public:
 		Leader(string leaderName);
-		Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> myMap, string lastSeenMsg, int lastSeenSequenceNum, ClienQueue q ); 
+		Leader(string name,string ip,int port,int ackPort,int heartbeatPort, struct sockaddr_in sock, struct sockaddr_in ackSock, struct sockaddr_in heartbeatSock, int sockFd, int ackFd, int heartbeatFd, map<Id,ChatRoomUser> myMap, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> q ); 
 		void startServer();
 		void printStartMessage();
 		// Thread task to listen for messages in chatroom from participants
@@ -163,8 +164,9 @@ class Leader : public ChatRoomUser
 		// send message from leader to chatroom
 		void sender();
 		// send a recovery message and receive the lastSeenSeqNum and lastSeenMsg and update the same 
-		int sendRecoveryWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry, int &lastSeenSeqNum, string &lastSeenMsg)
-
+		int sendRecoveryWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry, int &lastSeenSeqNum, string &lastSeenMsg);
+		void performRecovery();
+		
 };
 
 class Client
@@ -199,6 +201,10 @@ class Client
 	bool isRecovery;
 	bool isRecoveryDone;
 	bool iAmDead;
+
+	mutex isElectionMutex;
+	mutex leaderFoundMutex;
+	mutex iAmDeadMutex;
 
         struct sockaddr_in leaderAddress,leaderAckAddress,leaderHeartBeatAddress,clientAddress, heartBeatAddress, ackAddress;
         socklen_t leaderAddressLength;

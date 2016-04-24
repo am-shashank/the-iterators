@@ -3,7 +3,7 @@ all: 	dchat.o leader.o client.o
 	g++ $(CPPFLAGS) -o dchat dchat.o leader.o utils.o client.o queue.o message.o clientQueue.o id.o chatRoomUser.o
 dchat.o: dchat.cpp
 	g++ $(CPPFLAGS) -c dchat.cpp
-leader.o:leader.cpp utils.o globals.h queue.o chatRoomUser.o
+leader.o:leader.cpp utils.o globals.h queue.o chatRoomUser.o clientQueue.o
 	g++ $(CPPFLAGS) -c leader.cpp 
 client.o:client.cpp utils.o globals.h clientQueue.o
 	g++ $(CPPFLAGS) -c client.cpp

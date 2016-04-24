@@ -151,7 +151,17 @@ int Client :: establishConnection()
 		//processMsg.join();
 		detectFailure.join();
 		heartBeatPing.join();
- 
+		#ifdef DEBUG
+		cout<<"[DEBUG]All threads got joined inside the client"<<endl;
+		#endif 
+		//close(clientFd);
+		//close(heartBeatFd);
+
+		/*
+		#ifdef DEBUG
+		cout<<"[DEBUG] My client closed"<<endl;
+		#endif
+		*/
 	}
 	else
 	{
@@ -359,7 +369,10 @@ void Client :: sender()
 		if(iAmDead)
 		{
 			//TODO terminate the thread
-			terminate();
+			#ifdef DEBUG
+			cout<<"[DEBUG]breaking from sender thread"<<endl;
+			#endif
+			break;
 		}
 		
 		if(isRecoveryDone)
@@ -370,54 +383,72 @@ void Client :: sender()
 			thread sendRecoveryMsgs(&Client::performRecovery,this);
 			sendRecoveryMsgs.join();
 			
-		}		
+		}
+		struct pollfd fds;
+		int ret;
+		fds.fd = 0; // fd for stdin
+		fds.events = POLLIN;
+		ret = poll(&fds, 1, 0);
 		bzero(msgBuffer,501);
-		cin.getline(msgBuffer, sizeof(msgBuffer));	
-		if(cin.eof())
-		{
-			// checks for Control-D
-			exitChatroom();
-		}	
+		if(ret == 1) {		
+			cin.getline(msgBuffer, sizeof(msgBuffer));	
+			if(cin.eof())
+			{
+				// checks for Control-D
+				exitChatroom();
+			}	
+		} else if(ret == 0 && iAmDead) 
+			break;
 		
 		// send the message to the leader
-		string msg = string(msgBuffer);
-		stringstream tempStr;
-		msgId = msgId+1;
-		tempStr<<CHAT<<"%"<< msg<<"%"<<msgId;
-		string finalMsg = tempStr.str();
-		//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
-	
-		// create an object of the message class and enque the message
-               
-                Message m(msgId,msg);
-                q.push(m);
 		
-		// send message to the leader only if no elections are being held and new leader is not recovering information
-		if(!isElection && !isRecovery && !isRecoveryDone)
+		string msg = string(msgBuffer);
+		
+		if(msg.compare("")!=0)
 		{
-			int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
+			
 			#ifdef DEBUG
-			//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
-			#endif
-			if(sendResult == -1)
-	        	{
-        	        	#ifdef DEBUG
-                		cout<<"[DEBUG]message could not be sent to the leader"<<endl;
-                		#endif
-        		}
-			else if(sendResult == NODE_DEAD)
+			cout<<"[DEBUG] Inside sender thread: "<<msg<<endl;
+			#endif	
+			stringstream tempStr;
+			msgId = msgId+1;
+			tempStr<<CHAT<<"%"<< msg<<"%"<<msgId;
+			string finalMsg = tempStr.str();
+			//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
+		
+			// create an object of the message class and enque the message
+		       
+			Message m(msgId,msg);
+			q.push(m);
+			
+			// send message to the leader only if no elections are being held and new leader is not recovering information
+			lock_guard<mutex> guard(isElectionMutex);
+			if(!isElection && !isRecovery && !isRecoveryDone)
 			{
-				//leader died and hence perform elections
-				//TODO: perform elections : *******DONE********
-				if(!isElection)
+				int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
+				#ifdef DEBUG
+				//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
+				#endif
+				if(sendResult == -1)
 				{
-							
-					thread electionThread(&Client::startElection,this);
-					electionThread.join();
+					#ifdef DEBUG
+					cout<<"[DEBUG]message could not be sent to the leader"<<endl;
+					#endif
+				}
+				else if(sendResult == NODE_DEAD)
+				{
+					//leader died and hence perform elections
+					//TODO: perform elections : *******DONE********
+					if(!isElection)
+					{
+								
+						thread electionThread(&Client::startElection,this);
+						//electionThread.join();
+						electionThread.detach();
+					}
 				}
 			}
-		}
-		
+		}		
 		
 	}
 }
@@ -491,7 +522,15 @@ void Client :: receiver()
 			{
 				// terminate thread
 				iAmDead = true;
-				terminate();
+				//send acknowledgement
+				sendMessage(ackFd,to_string(ACK),ackAddress);			
+				#ifdef DEBUG
+				cout<<"[DEBUG]breaking out of receiver thread"<<endl;
+				#endif
+				// close(clientFd);
+				// close(heartBeatFd);
+				break;
+			
 			}
 			
 			else if(code == CHAT)
@@ -634,7 +673,8 @@ void Client :: receiver()
 					// if election did not start yet, start elections
 					
 					thread electionThread(&Client::startElection,this);
-					electionThread.join();
+					electionThread.detach();
+					//electionThread.join();
 				}
 				
 			}
@@ -646,7 +686,7 @@ void Client :: receiver()
 				// leader is found
 				leaderFound = true;
 				//set election to false
-				isElection = false;
+				//isElection = false;
 
 				// send the acknowledgement
 				Id idObj = getId(clientTemp);
@@ -668,7 +708,8 @@ void Client :: receiver()
 				// invoking functions to set all leader attributes
 				char *tempIp =const_cast<char*>(idObj.ip.c_str());
 				setLeaderAttributes(tempIp,idObj.port);
-				setupLeaderPorts(chatRoom[idObj].ackPort,chatRoom[idObj].heartbeatPort);					
+				setupLeaderPorts(chatRoom[idObj].ackPort,chatRoom[idObj].heartbeatPort);
+				isElection = false;					
 			}
 			else if(code == RECOVERY)
 			{
@@ -681,7 +722,7 @@ void Client :: receiver()
 				// reset boolean flags
 
 				isRecovery = true;
-				isElection = false;
+				//isElection = false;
 
 				// send acknowledgement for recovery message to new leader
 				stringstream msg;
@@ -695,7 +736,7 @@ void Client :: receiver()
 				
 				isRecovery = false;
 				isRecoveryDone = true;
-				isElection = false;
+				//isElection = false;
 				// send acknowledgement to the user
 				sendAck(to_string(ACK));
 
@@ -818,10 +859,8 @@ void Client:: startElection()
 		map<Id, ChatRoomUser>::iterator it;
                 for(it = chatRoom.begin(); it != chatRoom.end(); it++)
                 {
-				/*
 				if((it->first.ip.compare(clientIp)==0) && (it->first.port == clientPort) )
 					continue;
-				*/
                 		string ip = it->first.ip;
                         	int port = it->first.port;
 
@@ -841,7 +880,7 @@ void Client:: startElection()
 
 		}
 
-		isElection = false;
+		//isElection = false;
 		#ifdef DEBUG
 		cout<<"[DEBUG]leader message broadcasted to all other clients"<<endl;
 		#endif
@@ -858,10 +897,22 @@ void Client:: startElection()
 		
 		// TODO take care of all the previous client threads
 		
-		// creating a new leader object: *****DONE******	
-		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort, clientAddress, heartBeatAddress, ackAddress, clientFd, ackFd, heartBeatFd, chatRoom, lastSeenMsg, lastSeenSequenceNum, q);
-		//TODO terminate other client threads.		
+		// creating a new leader object: *****DONE******
+		queue<Message> tempQ;	
+		int size = q.size();
+		for(int i=0;i<size;i++)
+		{
+			Message m = q.pop();
+			tempQ.push(m);
+				
+		}
+		//iAmDead = true;	
+		Leader newLeader(clientUser.name,clientIp,clientPort,clientUser.ackPort,clientUser.heartbeatPort, clientAddress, heartBeatAddress, ackAddress, clientFd, ackFd, heartBeatFd, chatRoom, lastSeenMsg, lastSeenSequenceNum, tempQ);
+				
 	}
+	#ifdef DEBUG
+        cout<<"[DEBUG]exiting election thread"<<endl;
+        #endif
 }
 
 
@@ -883,6 +934,8 @@ void Client :: exitChatroom()
 	}
 	
 	close(clientFd);
+	close(ackFd);
+	close(heartBeatFd);
 	exit(0);
 }
 
@@ -947,19 +1000,31 @@ void Client :: sendHeartbeat()
 	{
 		if(iAmDead)
 		{
-			terminate();
+			#ifdef DEBUG
+			cout<<"[DEBUG]breaking out of heartbeat thread"<<endl;
+			#endif
+			break;
 		}
 		if(!isElection)
 		{
+			#ifdef DEBUG
+			// cout<<"[DEBUG] sending heartbeats...no elections"<<endl;
+			#endif
         		int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
 			if(sendResult == -1)
 			{
 				#ifdef DEBUG
-				cout<<"[DEBUG]failed to send heartbeat to the leader"<<endl;
+				//cout<<"[DEBUG]failed to send heartbeat to the leader"<<endl;
 				#endif
 			
 			}
 			this_thread::sleep_for(chrono::milliseconds(HEARTBEAT_THRESHOLD));
+		}
+		else
+		{
+			#ifdef DEBUG
+			//cout<<"[DEBUG]elections started...no heartbeat"<<endl;
+			#endif
 		}
 	}
 }
@@ -974,14 +1039,22 @@ void Client :: detectLeaderFailure()
 	{
 		if(iAmDead)
 		{
-			terminate();
+			#ifdef DEBUG
+                        cout<<"[DEBUG]breaking out of receive heartbeat thread"<<endl;
+                        #endif
+			break;
 		}
 		if(!isElection)
 		{
+			/*
+			#ifdef DEBUG
+			cout<<"[DEBUG]NOT IS ELECTION"<<endl;
+			#endif
+			*/
 			struct pollfd myPollFd;
 			myPollFd.fd = heartBeatFd;
 			myPollFd.events = POLLIN;
-			int result = poll(&myPollFd,1,3*HEARTBEAT_THRESHOLD);
+			int result = poll(&myPollFd,1,2*HEARTBEAT_THRESHOLD);
 			int receivedMessage = 0;
 			if(result == -1)
 			{
@@ -1000,7 +1073,8 @@ void Client :: detectLeaderFailure()
 				{
 					
 					thread electionThread(&Client::startElection,this);
-					electionThread.join();
+					//electionThread.join();
+					electionThread.detach();
 				} 
 			}
 			else

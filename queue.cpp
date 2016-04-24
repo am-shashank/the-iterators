@@ -19,4 +19,7 @@ Message BlockingPQueue::pop()
     	pQueue.pop();
     	return item;
 }
-
+int BlockingPQueue::size() 
+{
+	return pQueue.size();
+}
