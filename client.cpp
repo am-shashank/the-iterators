@@ -38,6 +38,7 @@ Client :: Client(string name,string leaderIpPort)
 	isElection = false;
 	isRecovery = false;
 	isRecoveryDone = false;
+	multiplier=3;
 	vector<string> ipPortStr;
 	boost::split(ipPortStr,leaderIpPort,boost::is_any_of(":"));
 	leaderIp = const_cast<char*>(ipPortStr[0].c_str());
@@ -156,7 +157,8 @@ int Client :: establishConnection()
 		#endif 
 		//close(clientFd);
 		//close(heartBeatFd);
-
+	
+		//close(ackFd);
 		/*
 		#ifdef DEBUG
 		cout<<"[DEBUG] My client closed"<<endl;
@@ -383,8 +385,10 @@ void Client :: sender()
 			// iterate over the send queue and send all the messages to the leader
 			//calculate size of the queue
 			//perform recovery
-			thread sendRecoveryMsgs(&Client::performRecovery,this);
-			sendRecoveryMsgs.join();
+			// multiplier = 3;
+			isRecoveryDone = false;
+			//thread sendRecoveryMsgs(&Client::performRecovery,this);
+			//sendRecoveryMsgs.detach();
 			
 		}
 		struct pollfd fds;
@@ -718,6 +722,9 @@ void Client :: receiver()
 				char *tempIp =const_cast<char*>(idObj.ip.c_str());
 				setLeaderAttributes(tempIp,idObj.port);
 				setupLeaderPorts(chatRoom[idObj].ackPort,chatRoom[idObj].heartbeatPort);
+				#ifdef DEBUG
+				cout<<"[DEBUG]IP..PORT..ACKPORT..HEARTpORT...\t"<<tempIp<<" "<<idObj.port<<"  "<<chatRoom[idObj].ackPort<<" "<<chatRoom[idObj].heartbeatPort<<endl;
+				#endif
 				// lock_guard<mutex> guard1(isElectionMutex);
 				isElection = false;					
 			}
@@ -732,11 +739,15 @@ void Client :: receiver()
 				// reset boolean flags
 
 				isRecovery = true;
-				//isElection = false;
+				// multiplier *= 2;
+				isElection = false;
+				#ifdef DEBUG
+				cout<<"[DEBUG]GOT RECOVERY MSG"<<endl;
+				#endif
 
 				// send acknowledgement for recovery message to new leader
 				stringstream msg;
-				msg<<ACK<<"%"<<lastSeenSequenceNum<<"%"<<lastSeenMsg;
+				msg<<ACK<<"$"<<lastSeenSequenceNum<<"$"<<lastSeenMsg;
 				sendAck(msg.str());
 								
 			}
@@ -746,7 +757,7 @@ void Client :: receiver()
 				
 				isRecovery = false;
 				isRecoveryDone = true;
-				//isElection = false;
+				isElection = false;
 				// send acknowledgement to the user
 				sendAck(to_string(ACK));
 
@@ -784,8 +795,10 @@ void Client :: receiver()
 void Client :: sendAck(string msg)
 {
 	int sendResult = sendMessage(ackFd,msg,leaderAckAddress);
+	Id obj = getId(leaderAckAddress);
+	
 	#ifdef DEBUG
-	cout<<"ACK sent for "<<msg<<endl;
+	cout<<"ACK sent for "<<msg<<"to\t"<<obj.ip<<":"<<obj.port<<endl;
 	#endif
         if(sendResult < 0)
         {
@@ -1022,7 +1035,7 @@ void Client :: sendHeartbeat()
 		if(!isElection)
 		{
 			#ifdef DEBUG
-			// cout<<"[DEBUG] sending heartbeats...no elections"<<endl;
+			cout<<"[DEBUG] sending heartbeats...no elections "<<getId(leaderHeartBeatAddress)<<endl;
 			#endif
         		int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
 			if(sendResult == -1)
@@ -1071,7 +1084,7 @@ void Client :: detectLeaderFailure()
 			struct pollfd myPollFd;
 			myPollFd.fd = heartBeatFd;
 			myPollFd.events = POLLIN;
-			int result = poll(&myPollFd,1,2*HEARTBEAT_THRESHOLD);
+			int result = poll(&myPollFd,1,3*HEARTBEAT_THRESHOLD);
 			int receivedMessage = 0;
 			if(result == -1)
 			{
@@ -1094,14 +1107,16 @@ void Client :: detectLeaderFailure()
 					electionThread.detach();
 				} 
 			}
-			else
+			else if(!iAmDead)
 			{
 				char readBuffer[500];
 	                	bzero(readBuffer,501);
         	        	int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
+				#ifdef DEBUG
+				cout<<"[DEBUG]heartbeat received from leader"<<endl;
+				#endif
 			}
 		}
 
 	}				
-
 }

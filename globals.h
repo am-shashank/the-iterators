@@ -202,6 +202,8 @@ class Client
 	bool isRecoveryDone;
 	bool iAmDead;
 
+	// heartbeat multiplier
+	int multiplier;
 	mutex isElectionMutex;
 	mutex leaderFoundMutex;
 	mutex iAmDeadMutex;
