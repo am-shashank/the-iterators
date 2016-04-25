@@ -19,17 +19,17 @@
 // chat priority codes
 
 #define JOIN 1
-#define DELETE 2
-#define HEARTBEAT 3
+#define DELETE 5
+#define HEARTBEAT 9 
 #define RESOLVE_LEADER 4
-#define LIST_OF_USERS 5
-#define ACK 6
-#define ELECTION 7
-#define ADD_USER 8
-#define LEADER 9
-#define RECOVERY 11
-#define CLOSE_RECOVERY 12
-#define IAMDEAD 13
+#define LIST_OF_USERS 3
+#define ACK 8
+#define ELECTION 6
+#define ADD_USER 2
+#define LEADER 7
+#define RECOVERY 10
+#define CLOSE_RECOVERY 0
+#define IAMDEAD 11
 #define CHAT 100
 #define DEQUEUE 99
 // threshold for heart-beat in milliseconds
@@ -120,7 +120,11 @@ class ChatRoomUser {
 		string ip;
 		string name; // user name of the chatroom user
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
+<<<<<<< HEAD
 		int priority;		
+=======
+		int priority;	
+>>>>>>> b1c07b9c4aa98e287453b228d3d89cbce5fa7079
 	ChatRoomUser();
 	ChatRoomUser(string name, int ackPort, int heartbeatPort);
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
@@ -184,7 +188,7 @@ class Leader : public ChatRoomUser
 		// send a recovery message and receive the lastSeenSeqNum and lastSeenMsg and update the same 
 		int sendRecoveryWithRetry(int sendFd, string msg, sockaddr_in addr, int ackFd, int numRetry, int &lastSeenSeqNum, string &lastSeenMsg);
 		void performRecovery();
-		
+		void parseMyMessage(Message m);	
 };
 
 class Client

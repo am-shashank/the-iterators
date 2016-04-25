@@ -412,13 +412,14 @@ void Client :: sender()
 		{
 			// iterate over the send queue and send all the messages to the leader
 			//calculate size of the queue
-			//perform recovery
-			multiplier = 3;
+			/*perform recovery
+			multiplier = 3; */
 			isRecoveryDone = false;
 			//thread sendRecoveryMsgs(&Client::performRecovery,this);
-			//sendRecoveryMsgs.detach();
+			//sendRecoveryMsgs.join(); */
 			
 		}
+	
 		struct pollfd fds;
 		int ret;
 		fds.fd = 0; // fd for stdin
@@ -440,29 +441,45 @@ void Client :: sender()
 		
 		// send the message to the leader
 		
-		string msg = string(msgBuffer);
+		{
+			string msg = string(msgBuffer);
+			#ifdef DEBUG
+			cout<<"[DEBUG]mESSAGE BUFFER\t"<<msg<<endl;
+			#endif
+		// writing a script to send messages */
+	//	string msg="";
+	//	for(int i=0;i<5;i++)
+		
+	//		if(i==6)
+	//		{break;}
+	//		msg = to_string(i);
+		
 		
 		if(msg.compare("")!=0 && !iAmDead)
 		{
 			
 			#ifdef DEBUG
-			cout<<"[DEBUG] Inside sender thread: "<<msg<<endl;
+			//cout<<"[DEBUG] Inside sender thread: "<<msg<<endl;
 			#endif	
 			stringstream tempStr;
 			msgId = msgId+1;
 			tempStr<<CHAT<<"%"<< msg<<"%"<<msgId;
 			string finalMsg = tempStr.str();
+			#ifdef DEBUG
+			cout<<"Message sent\t"<<finalMsg<<endl;
+			#endif
 			//int sendResult = sendMessage(clientFd,finalMsg,leaderAddress);
 		
 			// create an object of the message class and enque the message
 		       
 			Message m(msgId,msg);
-			q.push(m);
+			//q.push(m);
 			
 			// send message to the leader only if no elections are being held and new leader is not recovering information
 			//lock_guard<mutex> guard(isElectionMutex);
 			if(!isElection && !isRecovery && !isRecoveryDone)
 			{
+				q.push(m);
 				int sendResult = sendMessageWithRetry(clientFd,finalMsg,leaderAddress,ackFd,NUM_RETRY);
 				#ifdef DEBUG
 				//cout<<"[DEBUG] Sending "<<finalMsg<<" to "<<leaderIp<<":"<<leaderPort<<endl;
@@ -487,7 +504,8 @@ void Client :: sender()
 				}
 			}
 		}		
-		
+	}
+		break;		
 	}
 	// senderSem.notify();
 }
@@ -569,14 +587,47 @@ void Client :: receiver()
 				#ifdef DEBUG
 				cout<<"[DEBUG] Recevied message "<<readBuffer<<endl;
 				#endif
-				string msg = string(readBuffer);
-				// splitting the message on the basis of %
+				string tempBuffer = string(readBuffer);
+				string msg;
 				vector<string> msgSplit;
 				vector<string> :: iterator ite;
+				bool isCloseR = false;
+
+				//check if the prefix is CLOSE_RECOVERi(msg.at(0) == CLOSE_RECOVERY)
+				if(tempBuffer.at(0) == '0')
+					{
+						// CASE for CLOSE_RECOVERY
+						
+						isCloseR = true;
+						vector<string> tempSplit;
+						boost::split(tempSplit,tempBuffer,boost::is_any_of("$"));
+						msg = tempSplit[1];								
+					}
+				else
+				{
+					msg = tempBuffer;
+				}
+				// splitting the message on the basis of %
+				//vector<string> msgSplit;
+				//vector<string> :: iterator ite;
 				boost::split(msgSplit,msg,boost::is_any_of("%"));
 				ite = msgSplit.begin();
 				ite++;
 				int code = atoi(msgSplit[0].c_str());
+
+				if(isCloseR)
+				{
+
+					// main code for CLOSE_RECOVERY
+					// TODO set isRecovery = false: ****DONE****
+                                        multiplier = 3;
+                                        isRecovery = false;
+                                        isRecoveryDone = true;
+                                        isElection = false;
+                                        // send acknowledgement to the user
+                                        sendAck(to_string(ACK));
+	
+				}
 				if(code == IAMDEAD)
 				{
 					// terminate thread
@@ -806,7 +857,7 @@ void Client :: receiver()
                                         sendAck(msg.str());
 					
 				}
-				else if(code == CLOSE_RECOVERY)
+				/*else if(code == CLOSE_RECOVERY)
 				{
 					// TODO set isRecovery = false: ****DONE****
 					multiplier = 3;
@@ -816,7 +867,7 @@ void Client :: receiver()
 					// send acknowledgement to the user
 					sendAck(to_string(ACK));
 
-				}		
+				}*/		
 				else if(code == ADD_USER)
 				{
 					// send acknowledgement to the leader
@@ -1105,7 +1156,7 @@ void Client :: sendHeartbeat()
 		if(!isElection)
 		{
 			#ifdef DEBUG
-			cout<<"[DEBUG] sending heartbeats...no elections "<<getId(leaderHeartBeatAddress)<<endl;
+			//cout<<"[DEBUG] sending heartbeats...no elections "<<getId(leaderHeartBeatAddress)<<endl;
 			#endif
         		int sendResult = sendMessage(heartBeatFd,finalMsg,leaderHeartBeatAddress);
 			if(sendResult == -1)
@@ -1185,7 +1236,7 @@ void Client :: detectLeaderFailure()
 	                	bzero(readBuffer,501);
         	        	int numChar = receiveMessage(heartBeatFd,&clientTemp,&clientTempLen,readBuffer);
 				#ifdef DEBUG
-				cout<<"[DEBUG]heartbeat received from leader"<<endl;
+				//cout<<"[DEBUG]heartbeat received from leader"<<endl;
 				#endif
 			}
 		}
