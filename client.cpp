@@ -593,7 +593,7 @@ void Client :: receiver()
 				
 				}
 				
-				else if(code == CHAT)
+				else if(code >= CHAT)
 				{
 					/*
 					for(;ite!= msgSplit.end();ite++)

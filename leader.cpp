@@ -68,9 +68,7 @@ Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string las
 		this->sendQ.push(m);
 	} */
 
-	#ifdef DEBUG
-	cout<<"[DEBUG] New Leader starting...."<<endl;
-	#endif
+	
 
 	heartbeatSockFd = socket(AF_INET, SOCK_DGRAM, 0);
         bzero((char*) &heartbeatSock, sizeof(heartbeatSock));
@@ -92,6 +90,7 @@ Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string las
     	sock.sin_addr.s_addr = INADDR_ANY;
 	port = generatePortNumber(sockFd, sock);
 
+	cout<<"[DEBUG] I'm the new leader listening on  "<<ip<<":"<<port<<endl;
 	#ifdef DEBUG
 	cout<<"Socket bind successful "<<endl;
 	#endif	
@@ -387,8 +386,12 @@ void Leader::parseMessage(char *message, Id clientId) {
 				else
 					senderName = chatRoom[clientId].name;
 				string chatMsg = senderName + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId);
-				Message responseObj = Message(CHAT,chatMsg, true);
+				int curPriority = chatRoom[clientId].priority;
+				curPriority++;
+				Message responseObj = Message(curPriority,chatMsg, true);
+				chatRoom[clientId].priority = curPriority;
 				q.push(responseObj);
+			
 			}
 			break;
 		case DELETE:
@@ -491,7 +494,7 @@ void Leader::consumerTask() {
 		vector<string> msgSplit;
 		string msg = m.getMessage();
                 boost::split(msgSplit,msg,boost::is_any_of("%"));
-		if(m.getType() == CHAT) {
+		if(m.getType() >= CHAT) {
 			cout<<msgSplit[0]<<endl;	
 			// send dequeue request
 			Id clientId = Id(msgSplit[1]);

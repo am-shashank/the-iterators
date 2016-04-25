@@ -14,7 +14,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#define DEBUG 1	
+//#define DEBUG 0	
 
 // chat priority codes
 
@@ -120,7 +120,7 @@ class ChatRoomUser {
 		string ip;
 		string name; // user name of the chatroom user
 		chrono::time_point<chrono::system_clock> lastHbt; // time when the last heartbeat was received
-		
+		int priority;		
 	ChatRoomUser();
 	ChatRoomUser(string name, int ackPort, int heartbeatPort);
 	ChatRoomUser(string name, string ip, int port, int ackPort, int heartbeatPort);
