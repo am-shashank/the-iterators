@@ -9,16 +9,17 @@
 
 using namespace std;
 
+string msgToDeliver; // unsynchronized message for newly elected leader
 
 Leader :: Leader(string leaderName) {
 	msgId = 0;
 	seqNum = 0;
 	name = leaderName;
-	ip = getIp();
-	startServer();	
 	isRecovery = false;
 	isNewlyElected = false;
 	isRecoveryDone = false;
+	ip = getIp();
+	startServer();	
 }
 //Leader ::Leader(string tempName,string tempIp,int tempPort,int tempAckPort,int tempHeartbeatPort, struct sockaddr_in tempSock, struct sockaddr_in tempAckSock, struct sockaddr_in tempHeartbeatSock, int tempSockFd, int tempAckFd, int tempHeartbeatFd, map<Id,ChatRoomUser> tempChatRoom, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> tempQ )
 Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string lastSeenMsg, int lastSeenSequenceNum, queue<Message> tempQ)
@@ -55,7 +56,7 @@ Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string las
 	cout<<"Last Seen Seq Num" << storeLastSeenSequenceNum << endl;	
 	#endif
 	
-	string msgToDeliver = lastSeenMsg;
+	msgToDeliver = lastSeenMsg;
 
 	// this->sendQ = q;
 	//memcpy ( &sendQ, &q, sizeof(q));
@@ -149,7 +150,7 @@ Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string las
         for(it1 = this->chatRoom.begin(); it1 != this->chatRoom.end(); it1++)
 		it1->second.lastHbt = chrono::system_clock::now();
 	
-	seqNum = maxSeqNum;
+	seqNum = maxSeqNum - 1;
 	isRecovery = false;
 
 	
@@ -166,92 +167,14 @@ Leader :: Leader(string tempName, map<Id, ChatRoomUser> tempChatRoom, string las
 
 	//seqNum = maxSeqNum;	
 
-	#ifdef DEBUG
-	//cout<<"[DEBUG] max: "<<maxSeqNum<<"\tMin: "<<minSeqNum<<endl;
-	#endif
-	// broadcast unsynchronized message in a loop
-	/*{
-	//if(minSeqNum != maxSeqNum) { 
-		map<Id, ChatRoomUser>::iterator it;
-		for(it=chatRoom.begin(); it != chatRoom.end(); it++){
-			if(it->first.ip.compare(ip) == 0 && it->first.port == port) {
-				if(storeLastSeenSequenceNum != seqNum) {
-					// spliting the encoded message
-        				vector<string> msgSplit;
-        				boost::split(msgSplit,msgToDeliver,boost::is_any_of("%"));
-					int msgType = atoi(msgSplit[0].c_str());	
-					if(msgType == CHAT) {
-						cout<<msgSplit[1]<<endl;
-					}else if(msgType == DELETE) {
-						//remove that user's entry from chatRoom
-		                                string key = msgSplit[1];
-
-                		                //map<string,string> :: iterator mite;
-                                		//mite = chatRoom.find(key);
-                                		if(chatRoom.find(key) != chatRoom.end())
-                                		{
-                                        		chatRoom.erase(key);
-                                		}
-						cout<<msgSplit[2]<<endl;
-					} else if(msgType == ADD_USER) {
-						cout<<"NOTICE "<<msgSplit[1]<<" joined on "<<msgSplit[2]<<endl;
-						// add the new user's information in the map
-                		                Id idObj(msgSplit[2]);
-		                                ChatRoomUser userObj(msgSplit[1],atoi(msgSplit[3].c_str()),atoi(msgSplit[4].c_str()));
-                                		chatRoom[idObj] = userObj;
-					}								
-				
-				}
-			}else {
-				string clientIp = it->first.ip;
-				int clientPort = it->first.port;
-
-				// set socket attributes for participant 
-				struct sockaddr_in clientAdd;
-				bzero((char *) &clientAdd, sizeof(clientAdd));
-				clientAdd.sin_family = AF_INET;
-				inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
-				clientAdd.sin_port = htons(clientPort);
 		
-				sendMessageWithRetry(sockFd, msgToDeliver.c_str(), clientAdd, ackSockFd, NUM_RETRY);
-			}
-		}	
-	}*/
-	
-//	isRecovery = false;
+	//isRecovery = false;
 	// start producer, consumer threads
 	#ifdef DEBUG
 	cout << "Done through Recovery" << endl;
 	#endif
 	
-	/*// Multi-cast to everyone in the group 
-	map<Id, ChatRoomUser>::iterator it;
-	for(it = chatRoom.begin(); it != chatRoom.end(); it++) {
-		if(it->first.ip.compare(ip) == 0 && it->first.port == port)
-			continue;
-		stringstream msgStream;
-		msgStream << m.getType() << "%" << m.getMessage() << "%" ;
-		string msg = msgStream.str();
-		#ifdef DEBUG
-			cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second.name<<"@"<<it->first<<endl;
-		#endif
-		string clientIp = it->first.ip;
-		int clientPort = it->first.port;
-
-		// set socket attributes for participant 
-		struct sockaddr_in clientAdd;
-		bzero((char *) &clientAdd, sizeof(clientAdd));
-		clientAdd.sin_family = AF_INET;
-		inet_pton(AF_INET,clientIp.c_str(),&(clientAdd.sin_addr));
-		clientAdd.sin_port = htons(clientPort);
-
-		sendMessageWithRetry(sockFd, msg.c_str(), clientAdd, ackSockFd, NUM_RETRY);
-		
-		#ifdef DEBUG
-		cout<<"[DEBUG]Close recovery sent\t"<<endl;
-		#endif
-	}
-	*/
+	
 	thread prod(&Leader::producerTask, this, sockFd);
 	//prod.detach();
     	thread con(&Leader::consumerTask, this);
@@ -362,7 +285,7 @@ void Leader::parseMessage(char *message, Id clientId) {
 				int ackPort = atoi(messageSplit[4].c_str());
 				int heartbeatPort = atoi(messageSplit[5].c_str());
 				chatRoom[clientId] = ChatRoomUser(user, ip, port, ackPort, heartbeatPort);
-				
+							
 				sendListUsers(clientId.ip, clientId.port); 
 				
 				// add NOTICE message to Queue	
@@ -387,7 +310,10 @@ void Leader::parseMessage(char *message, Id clientId) {
 				else
 					senderName = chatRoom[clientId].name;
 				string chatMsg = senderName + ":: " + messageSplit[1] + "%"+ clientId.ip + ":" + to_string(clientId.port) + "%" + to_string(msgId);
-				Message responseObj = Message(CHAT,chatMsg, true);
+				int priority = chatRoom[clientId].priority;
+				priority++;
+				Message responseObj = Message(priority,chatMsg, true);
+				chatRoom[clientId].priority = priority;
 				q.push(responseObj);
 			}
 			break;
@@ -434,9 +360,12 @@ void Leader::producerTask(int fd) {
 	#endif
 	while (true) {
 		if(isNewlyElected) {	
-			q.push(Message(CLOSE_RECOVERY,"",true));
+			q.push(Message(CLOSE_RECOVERY, msgToDeliver,true));
 			isNewlyElected = false;
-		}		
+		}
+		#ifdef DEBUG
+		cout<<"[DEBUG] Producer task before receive message"<<endl;
+		#endif		
 		// receive message with ACK
 		char readBuffer[500];
 		bzero(readBuffer, 501);
@@ -459,8 +388,9 @@ void Leader::consumerTask() {
 	#endif	
 	while(true) {
 		Message m = q.pop();
-		if(m.getType() == CLOSE_RECOVERY)
+		if(m.getType() == CLOSE_RECOVERY) {
 			isRecoveryDone = true; // allow sender to bombard messages
+		}
 			
 		// Multi-cast to everyone in the group 
 		map<Id, ChatRoomUser>::iterator it;
@@ -469,7 +399,11 @@ void Leader::consumerTask() {
 			if(it->first.ip.compare(ip) == 0 && it->first.port == port)
                                 continue;
 			stringstream msgStream;
-			msgStream << m.getType() << "%" << m.getMessage() << "%" << seqNum;
+			if(m.getType() == CLOSE_RECOVERY) {
+				msgStream << m.getType() << "$" << m.getMessage(); 	
+			}else {
+				msgStream << m.getType() << "%" << m.getMessage() << "%" << seqNum;
+			}
 			string msg = msgStream.str();
 			#ifdef DEBUG
 				cout<<"[DEBUG]Sending "<<msg<<" to "<<it->second.name<<"@"<<it->first<<endl;
@@ -488,30 +422,49 @@ void Leader::consumerTask() {
 				deleteUser(Id(clientIp, clientPort));
 		
 		}		
-		vector<string> msgSplit;
-		string msg = m.getMessage();
-                boost::split(msgSplit,msg,boost::is_any_of("%"));
-		if(m.getType() == CHAT) {
-			cout<<msgSplit[0]<<endl;	
-			// send dequeue request
-			Id clientId = Id(msgSplit[1]);
-			if(chatRoom.find(clientId) == chatRoom.end())  // Dont send dequeue messages to him
-				continue;
-			struct sockaddr_in clientAdd;
-			bzero((char *) &clientAdd, sizeof(clientAdd));
-			clientAdd.sin_family = AF_INET;
-			inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
-			clientAdd.sin_port = htons(clientId.port);
-			if(sendMessageWithRetry(sockFd, to_string(DEQUEUE).c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
-				deleteUser(clientId);
-						
-		}else if(m.getType() == ADD_USER){
-			cout<<"NOTICE "<<msgSplit[0]<<" joined on "<<msgSplit[1]<<endl;	
-		}else if(m.getType() == DELETE) {
-			cout<<msgSplit[1]<<endl;
+		if(m.getType() == CLOSE_RECOVERY) {
+			vector<string> msgSplit;
+			string temp = m.getMessage();
+			boost::split(msgSplit,temp,boost::is_any_of("$"));
+			vector<string> msgCodeExtractSplit;
+			boost::split(msgCodeExtractSplit, msgSplit[1], boost::is_any_of("%"));
+			int mType = atoi(msgCodeExtractSplit[0].c_str());
+			string m = "";
+			for(int i=1; i<msgCodeExtractSplit.size(); i++)
+				m = m + msgCodeExtractSplit[i];
+			parseMyMessage(Message(mType,m));
+		}else {
+			parseMyMessage(m);			
 		}
 		
 	}	
+}
+
+void Leader:: parseMyMessage(Message m) {
+	vector<string> msgSplit;
+	string msg = m.getMessage();
+	boost::split(msgSplit,msg,boost::is_any_of("%"));
+	if(m.getType() == CHAT) {
+		cout<<msgSplit[0]<<endl;	
+		// send dequeue request
+		Id clientId = Id(msgSplit[1]);
+		if(chatRoom.find(clientId) == chatRoom.end())  // Dont send dequeue messages to him
+			return;
+		struct sockaddr_in clientAdd;
+		bzero((char *) &clientAdd, sizeof(clientAdd));
+		clientAdd.sin_family = AF_INET;
+		inet_pton(AF_INET,clientId.ip.c_str(),&(clientAdd.sin_addr));
+		clientAdd.sin_port = htons(clientId.port);
+		if(sendMessageWithRetry(sockFd, to_string(DEQUEUE).c_str(), clientAdd, ackSockFd, NUM_RETRY) == NODE_DEAD)
+			deleteUser(clientId);
+					
+	}else if(m.getType() == ADD_USER){
+		cout<<"NOTICE "<<msgSplit[0]<<" joined on "<<msgSplit[1]<<endl;	
+	}else if(m.getType() == DELETE) {
+		cout<<msgSplit[1]<<endl;
+	}
+
+
 }
 
 void Leader::sendListUsers(string clientIp, int clientPort) {
@@ -543,7 +496,7 @@ void Leader::sendListUsers(string clientIp, int clientPort) {
 // to send recieve heartbeats, detect failures
 void Leader::heartbeatSender(){
 	#ifdef DEBUG
-	cout<<"Heart beat sender thread started"<<endl;
+	//cout<<"Heart beat sender thread started"<<endl;
 	#endif
 	while(true){	
 		// multi-cast heartbeat
@@ -566,7 +519,7 @@ void Leader::heartbeatSender(){
         		clientAdd.sin_port = htons(heartbeatPort);
 			sendMessage(heartbeatSockFd, to_string(HEARTBEAT),clientAdd);	
 			#ifdef DEBUG
-			cout<<"[DEBUG]sending heartbeat to\t"<<heartbeatPort<<endl;
+			//cout<<"[DEBUG]sending heartbeat to\t"<<heartbeatPort<<endl;
 			#endif
 		}		 			
 		// thread sleep
@@ -594,7 +547,7 @@ void Leader::heartbeatReceiver() {
 		if(chatRoom.find(clientId) != chatRoom.end()) {
 			chatRoom[clientId].lastHbt = chrono::system_clock::now();		
 			#ifdef DEBUG
-			cout<<"[DEBUG] Received heartbeat from "<<clientId<<endl;
+			//cout<<"[DEBUG] Received heartbeat from "<<clientId<<endl;
 			#endif
 		}
 	}
@@ -621,7 +574,7 @@ void Leader::detectClientFaliure(){
 			if (elapsedSeconds.count() > thresholdSeconds.count()){
 				// Node failure
 				#ifdef DEBUG
-				cout<<"[DEBUG] elapsed: "<<elapsedSeconds.count() <<" Threshold: "<<thresholdSeconds.count()<<endl;
+				//cout<<"[DEBUG] elapsed: "<<elapsedSeconds.count() <<" Threshold: "<<thresholdSeconds.count()<<endl;
 				cout<<"[DEBUG] Detected node failure of "<<it->first<<endl;
 				#endif
 				deleteUser(it->first);
@@ -636,7 +589,9 @@ void Leader::sender() {
 	/* sender should take input from console and send it to the leader 
         along with pushing the message in the blocking Queue*/
         char msgBuffer[500];
-	
+	#ifdef DEBUG
+	cout<<"[DEBUG] Heartbeat Sender thread started"<<endl;
+	#endif	
         while(true)
         {
 		if(isRecoveryDone)
@@ -644,9 +599,9 @@ void Leader::sender() {
                         // iterate over the send queue and send all the messages to the leader
                         //calculate size of the queue
                         //perform recovery
+                        // thread sendRecoveryMsgs(&Leader::performRecovery,this);
+                        // sendRecoveryMsgs.join();
 			isRecoveryDone = false;
-                        //thread sendRecoveryMsgs(&Leader::performRecovery,this);
-                        //sendRecoveryMsgs.detach();
 
                 }
 
@@ -675,9 +630,10 @@ void Leader::sender() {
 		clientAdd.sin_port = htons(port);
 		
 		Message m(msgId,msg);
-                sendQ.push(m);
+                // sendQ.push(m);
 		
 		if(!isRecoveryDone && !isRecovery) {	
+			sendQ.push(m);
 			int sendResult = sendMessageWithRetry(sockFd,finalMsg,clientAdd,ackSockFd,NUM_RETRY);
 			if(sendResult == -1)
 			{

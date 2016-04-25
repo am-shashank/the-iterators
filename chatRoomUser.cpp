@@ -7,6 +7,7 @@ ChatRoomUser:: ChatRoomUser(string name, string ip, int port, int ackPort, int h
     this->ackPort = ackPort;
     this->heartbeatPort = heartbeatPort;
     this->lastHbt = chrono::system_clock::now();
+    this->priority = CHAT; // set default priority as CHAT
 }
 	
 ChatRoomUser:: ChatRoomUser()
